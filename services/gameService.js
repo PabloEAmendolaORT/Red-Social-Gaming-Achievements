@@ -3,14 +3,14 @@ const games = [
     "id": "pokemon-firered",
     "title": "Pokemon Fire Red",
     "system": "GBA",
-    "unlockedAchievements": 0,
+    "unlockedAchievements": 1,
     "totalAchievements": 61
   },
   {
     "id": "ffta",
     "title": "Final Fantasy Tactics Advance",
     "system": "GBA",
-    "unlockedAchievements": 0,
+    "unlockedAchievements": 15,
     "totalAchievements": 90
   },
   {
@@ -25,3 +25,7 @@ const games = [
 export function getGames() {
     return games;
 };
+
+export function getGameById(id) {
+    return games.find(game => game.id === id);
+}
