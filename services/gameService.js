@@ -24,4 +24,4 @@ const games = [
 
 export function getGames() {
     return games;
-}
+};
