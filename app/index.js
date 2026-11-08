@@ -15,7 +15,9 @@ export default function App() {
           <GameCard game={item} />
         )}
       />
+      <Link href="/profile">Perfil de usuario</Link>
     </View>
+
   )       
 }
 
