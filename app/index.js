@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, FlatList } from 'react-native';
+import { Link } from 'expo-router';
 import { getGames } from '../services/gameService';
 import { GameCard } from '../components/GameCard';
 
