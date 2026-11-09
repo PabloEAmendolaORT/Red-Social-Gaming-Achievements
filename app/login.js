@@ -9,17 +9,17 @@ export default function Login() {
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const { setUser } = useContext(AuthContext);
+    const { handleLogin } = useContext(AuthContext);
     const [message, setMessage] = useState('');
 
-    const handleLogin = () => {
+    const handleSubmit = () => {
         if (!username.trim() || !password) {
             return setMessage('Por favor, complete todos los campos');
         } else {
             const user = login(username.trim(), password);
             
             if (user) {
-                setUser(user);
+                handleLogin(user);
                 setMessage(`Bienvenido, ${user.username}`);
             } else {
                 setMessage('Usuario o contraseña incorrectos');
@@ -50,7 +50,7 @@ export default function Login() {
                 />
             </View>
 
-            <Button title="Iniciar sesión" onPress={handleLogin} />
+            <Button title="Iniciar sesión" onPress={handleSubmit} />
             {message ? <Text>{message}</Text> : null}
             <Link href="/profile">Ir a mi perfil</Link>
 
