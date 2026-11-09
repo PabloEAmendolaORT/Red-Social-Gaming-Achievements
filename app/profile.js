@@ -3,13 +3,41 @@ import { View, Text, Button, TextInput } from 'react-native';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { saveProfile, getProfile } from '../services/profileService';
+import { searchRaProfile } from '../services/raService';
 
 export default function Profile() {
     const { user, handleLogout, isRestoringSession } = useContext(AuthContext);
     const [ displayName, setDisplayName ] = useState('');
     const [ message, setMessage ] = useState('');
-    const userId = user?.id;
     const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+    const [raUsername, setRaUsername] = useState('');
+    const [raProfile, setRaProfile] = useState(null);
+    const [raMessage, setRaMessage] = useState('');
+    const [isSearchingRa, setIsSearchingRa] = useState(false);
+    const userId = user?.id;
+
+    const handleSearchRa = async () => {
+        const username = raUsername.trim();
+
+        if (!username) {
+            setRaMessage('Ingresá un usuario de RetroAchievements.');
+            return;
+        }
+
+        setRaMessage('');
+        setRaProfile(null);
+        setIsSearchingRa(true);
+
+        const { data, error } = await searchRaProfile(username);
+
+        if (error) {
+            setRaMessage('No se pudo encontrar el perfil. Revisá el usuario e intentá de nuevo.');
+        } else {
+            setRaProfile(data);
+        }
+
+        setIsSearchingRa(false);
+    };
 
     useEffect(() => {
             if (!userId) return;
@@ -75,7 +103,34 @@ export default function Profile() {
                 onChangeText={setDisplayName}
                 editable={!isLoadingProfile}
             />
+            
             <Button title="Guardar" onPress={handleSave} disabled={isLoadingProfile} />
+
+            <Text>
+                RetroAchievements
+            </Text>
+
+            <TextInput
+                placeholder="Usuario de RetroAchievements"
+                value={raUsername}
+                onChangeText={(value) => {
+                    setRaUsername(value);
+                    setRaProfile(null);
+                    setRaMessage('');
+                }}
+                editable={!isSearchingRa}
+                autoCapitalize="none"
+            />
+            <Button
+                title={isSearchingRa ? 'Buscando…' : 'Buscar perfil'}
+                onPress={handleSearchRa}
+                disabled={isSearchingRa}
+            />
+
+            {raMessage ? <Text>{raMessage}</Text> : null}
+            {raProfile ? <Text>Perfil encontrado: {raProfile.username}</Text> : null}
+
+
             {message ? <Text>{message}</Text> : null}
 
             {user && (
