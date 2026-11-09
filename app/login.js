@@ -1,12 +1,14 @@
 import { TextInput } from 'react-native';
 import { View, Text, Button } from 'react-native';
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { login } from '../services/authService';
+import { AuthContext } from '../context/AuthContext'
 
 export default function Login() {
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const { setUser } = useContext(AuthContext);
     const [message, setMessage] = useState('');
 
     const handleLogin = () => {
@@ -16,6 +18,7 @@ export default function Login() {
             const user = login(username.trim(), password);
             
             if (user) {
+                setUser(user);
                 setMessage(`Bienvenido, ${user.username}`);
             } else {
                 setMessage('Usuario o contraseña incorrectos');
