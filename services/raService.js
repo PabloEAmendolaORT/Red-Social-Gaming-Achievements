@@ -5,3 +5,9 @@ export function searchRaProfile(username) {
         body: { username },
     });
 }
+
+export function linkRaProfile(ulid) {
+    return supabase.functions.invoke('ra-profile', {
+        body: { action: 'link', username: ulid },
+    });
+}

@@ -1,9 +1,9 @@
 import { Link, Redirect } from 'expo-router';
-import { View, Text, Button, TextInput } from 'react-native';
+import { View, Text, Button, TextInput, Image } from 'react-native';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { saveProfile, getProfile } from '../services/profileService';
-import { searchRaProfile } from '../services/raService';
+import { searchRaProfile, linkRaProfile } from '../services/raService';
 
 export default function Profile() {
     const { user, handleLogout, isRestoringSession } = useContext(AuthContext);
@@ -14,6 +14,7 @@ export default function Profile() {
     const [raProfile, setRaProfile] = useState(null);
     const [raMessage, setRaMessage] = useState('');
     const [isSearchingRa, setIsSearchingRa] = useState(false);
+    const [isLinkingRa, setIsLinkingRa] = useState(false);
     const userId = user?.id;
 
     const handleSearchRa = async () => {
@@ -37,6 +38,19 @@ export default function Profile() {
         }
 
         setIsSearchingRa(false);
+    };
+
+    const handleLinkRa = async () => {
+        setRaMessage('');
+        setIsLinkingRa(true);
+
+        const { data, error } = await linkRaProfile(raProfile.ulid);
+
+        setRaMessage(error || !data?.linked
+            ? 'No se pudo asociar la cuenta.'
+            : `Cuenta asociada: ${data.username}.`);
+
+        setIsLinkingRa(false);
     };
 
     useEffect(() => {
@@ -103,7 +117,7 @@ export default function Profile() {
                 onChangeText={setDisplayName}
                 editable={!isLoadingProfile}
             />
-            
+
             <Button title="Guardar" onPress={handleSave} disabled={isLoadingProfile} />
 
             <Text>
@@ -118,18 +132,37 @@ export default function Profile() {
                     setRaProfile(null);
                     setRaMessage('');
                 }}
-                editable={!isSearchingRa}
+                editable={!isSearchingRa && !isLinkingRa}
                 autoCapitalize="none"
             />
             <Button
                 title={isSearchingRa ? 'Buscando…' : 'Buscar perfil'}
                 onPress={handleSearchRa}
-                disabled={isSearchingRa}
+                disabled={isSearchingRa || isLinkingRa}
             />
 
             {raMessage ? <Text>{raMessage}</Text> : null}
-            {raProfile ? <Text>Perfil encontrado: {raProfile.username}</Text> : null}
 
+            {raProfile ? (
+                <View>
+                    {raProfile.avatarPath ? (
+                        <Image
+                            source={{ uri: `https://retroachievements.org${raProfile.avatarPath}` }}
+                            style={{ width: 64, height: 64 }}
+                            accessibilityLabel={`Avatar de ${raProfile.username}`}
+                        />
+                    ) : null}
+                    
+                    <Text>Perfil encontrado: {raProfile.username}</Text>
+
+                    <Button
+                        title={isLinkingRa ? 'Asociando…' : 'Asociar cuenta'}
+                        onPress={handleLinkRa}
+                        disabled={isLinkingRa || !raProfile.ulid}
+                    />
+
+                </View>
+            ) : null}
 
             {message ? <Text>{message}</Text> : null}
 
