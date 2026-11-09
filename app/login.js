@@ -1,6 +1,7 @@
 import { TextInput } from 'react-native';
 import { View, Text, Button } from 'react-native';
 import { useState, useContext } from 'react';
+import { Link } from 'expo-router';
 import { login } from '../services/authService';
 import { AuthContext } from '../context/AuthContext'
 
@@ -51,6 +52,7 @@ export default function Login() {
 
             <Button title="Iniciar sesión" onPress={handleLogin} />
             {message ? <Text>{message}</Text> : null}
+            <Link href="/profile">Ir a mi perfil</Link>
 
 
         </View>
