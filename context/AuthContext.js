@@ -1,13 +1,16 @@
 import { createContext, useState } from "react";
+import { saveSession, removeSession } from "../services/sessionStorage";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    function handleLogin(authenticatedUser) {
+    async function handleLogin(authenticatedUser) {
+        await saveSession(authenticatedUser);
         setUser(authenticatedUser);
     }
-    function handleLogout() {
+    async function handleLogout() {
+        await removeSession();
         setUser(null);
     }
 

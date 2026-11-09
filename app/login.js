@@ -12,14 +12,14 @@ export default function Login() {
     const { handleLogin } = useContext(AuthContext);
     const [message, setMessage] = useState('');
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!username.trim() || !password) {
             return setMessage('Por favor, complete todos los campos');
         } else {
             const user = login(username.trim(), password);
             
             if (user) {
-                handleLogin(user);
+                await handleLogin(user);
                 setMessage(`Bienvenido, ${user.username}`);
             } else {
                 setMessage('Usuario o contraseña incorrectos');
