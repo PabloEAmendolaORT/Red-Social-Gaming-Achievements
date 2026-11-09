@@ -42,17 +42,22 @@ export default function Profile() {
     };
 
     const handleLinkRa = async () => {
+        setRaMessage('');
+        setIsLinkingRa(true);
+        
+        const { data, error } = await linkRaProfile(raProfile.ulid);
+        
         if (!error && data?.linked) {
             setRaLink({ ra_ulid: data.ulid, ra_username: data.username });
         }
-        setRaMessage('');
-        setIsLinkingRa(true);
 
-        const { data, error } = await linkRaProfile(raProfile.ulid);
-
-        setRaMessage(error || !data?.linked
-            ? 'No se pudo asociar la cuenta.'
-            : `Cuenta asociada: ${data.username}.`);
+        if (error?.context?.status === 409) {
+            setRaMessage('La cuenta ya se encuentra vinculada a otro usuario.');
+        } else if (error || !data?.linked) {
+            setRaMessage('No se pudo asociar la cuenta.');
+        } else {
+            setRaMessage(`Cuenta asociada: ${data.username}.`);
+        }
 
         setIsLinkingRa(false);
     };
