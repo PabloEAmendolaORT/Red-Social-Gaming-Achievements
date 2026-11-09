@@ -1,7 +1,7 @@
 import { TextInput } from 'react-native';
 import { View, Text, Button } from 'react-native';
 import { useState, useContext } from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect, Link } from 'expo-router';
 import { login } from '../services/authService';
 import { AuthContext } from '../context/AuthContext'
 
@@ -31,7 +31,7 @@ export default function Login() {
     if (!isRestoringSession && user) {
     return <Redirect href="/profile" />;
     }
-    
+
     return (
         <View>
             <Text>Login</Text>
@@ -55,9 +55,11 @@ export default function Login() {
                 />
             </View>
 
+
             <Button title="Iniciar sesión" onPress={handleSubmit} />
             {message ? <Text>{message}</Text> : null}
 
+            <Link href="/register">Crear cuenta</Link>
 
         </View>
     );
