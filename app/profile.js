@@ -4,7 +4,14 @@ import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 
 export default function Profile() {
-    const { user, handleLogout } = useContext(AuthContext);
+    const { user, handleLogout, isRestoringSession } = useContext(AuthContext);
+    if (isRestoringSession) {
+        return (
+            <View>
+                <Text>Cargando sesión...</Text>
+            </View>
+        )
+    }
 
     return (
         <View>

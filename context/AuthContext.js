@@ -4,9 +4,12 @@ import { saveSession, removeSession, loadSession } from "../services/sessionStor
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+    const [isRestoringSession, setIsRestoringSession] = useState(true);
     const [user, setUser] = useState(null);
     useEffect(() => {
-            loadSession().then(setUser);
+        loadSession().then(setUser).finally(() => {
+            setIsRestoringSession(false);
+        });
         }, 
         []
     );
@@ -19,5 +22,5 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     }
 
-    return <AuthContext.Provider value={{ user, setUser, handleLogout, handleLogin }}>{children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={{ user, isRestoringSession, setUser, handleLogout, handleLogin }}>{children}</AuthContext.Provider>;
 }
