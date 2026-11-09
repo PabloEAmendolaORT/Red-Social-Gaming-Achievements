@@ -3,7 +3,7 @@ import { View, Text, Button, TextInput, Image } from 'react-native';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { saveProfile, getProfile } from '../services/profileService';
-import { searchRaProfile, linkRaProfile } from '../services/raService';
+import { searchRaProfile, linkRaProfile, getRaLink } from '../services/raService';
 
 export default function Profile() {
     const { user, handleLogout, isRestoringSession } = useContext(AuthContext);
@@ -15,6 +15,7 @@ export default function Profile() {
     const [raMessage, setRaMessage] = useState('');
     const [isSearchingRa, setIsSearchingRa] = useState(false);
     const [isLinkingRa, setIsLinkingRa] = useState(false);
+    const [raLink, setRaLink] = useState(null);
     const userId = user?.id;
 
     const handleSearchRa = async () => {
@@ -41,6 +42,9 @@ export default function Profile() {
     };
 
     const handleLinkRa = async () => {
+        if (!error && data?.linked) {
+            setRaLink({ ra_ulid: data.ulid, ra_username: data.username });
+        }
         setRaMessage('');
         setIsLinkingRa(true);
 
@@ -60,8 +64,18 @@ export default function Profile() {
             setIsLoadingProfile(true);
 
             async function loadProfile() {
-                const { data, error } = await getProfile(userId);
+                const [{ data, error }, raLinkResult] = await Promise.all([
+                    getProfile(userId),
+                    getRaLink(userId),
+                ]);
+
                 if (ignore) return;
+
+                setRaLink(raLinkResult.data ?? null);
+
+                if (raLinkResult.error) {
+                    setRaMessage('No se pudo cargar la cuenta asociada.');
+                }
 
                 if (error) {
                     setMessage('Error al cargar el perfil.');
@@ -124,6 +138,8 @@ export default function Profile() {
                 RetroAchievements
             </Text>
 
+            {raLink ? <Text>Cuenta asociada: {raLink.ra_username}</Text> : null}
+
             <TextInput
                 placeholder="Usuario de RetroAchievements"
                 value={raUsername}
@@ -158,7 +174,7 @@ export default function Profile() {
                     <Button
                         title={isLinkingRa ? 'Asociando…' : 'Asociar cuenta'}
                         onPress={handleLinkRa}
-                        disabled={isLinkingRa || !raProfile.ulid}
+                        disabled={isLinkingRa || !raProfile.ulid || isLoadingProfile}
                     />
 
                 </View>

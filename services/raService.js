@@ -11,3 +11,11 @@ export function linkRaProfile(ulid) {
         body: { action: 'link', username: ulid },
     });
 }
+
+export function getRaLink(userId) {
+    return supabase
+        .from('ra_links')
+        .select('ra_ulid, ra_username')
+        .eq('user_id', userId)
+        .maybeSingle();
+}
