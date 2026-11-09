@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, Redirect } from 'expo-router';
 import { View, Text, Button } from 'react-native';
 import { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
@@ -13,10 +13,14 @@ export default function Profile() {
         )
     }
 
+    if (!user) {
+        return <Redirect href="/login" />
+    }
+
     return (
         <View>
             <Text>Perfil de usuario</Text>
-            <Text>{user ? user.username : 'Sin sesion iniciada'}</Text>
+            <Text>{user.username}</Text>
             {user && (
             <Button title="Cerrar sesión" onPress={handleLogout} />
             )}
