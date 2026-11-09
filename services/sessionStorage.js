@@ -10,6 +10,16 @@ export async function saveSession(user) {
     }
 }
 
+export async function loadSession() {
+    try {
+        const storedUser = await AsyncStorage.getItem(SESSION_KEY);
+        return storedUser === null ? null : JSON.parse(storedUser);
+    } catch (error) {
+        console.error('Error loading session:', error);
+        return null;
+    }
+}
+
 export async function removeSession() {
     await AsyncStorage.removeItem(SESSION_KEY);
 }
