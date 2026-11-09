@@ -1,10 +1,9 @@
+import { supabase } from './supabaseClient';
 
+export function login(email, password) {
+    return supabase.auth.signInWithPassword({ email, password });
+}
 
-
-export function login(username, password) {
-    if (username === 'demo' && password === 'Demo123') {
-        return { username: 'demo'};
-    } else {
-        return null;
-    }
+export function logout() {
+    return supabase.auth.signOut();
 }

@@ -20,7 +20,9 @@ export default function Profile() {
     return (
         <View>
             <Text>Perfil de usuario</Text>
-            <Text>{user.username}</Text>
+            
+            <Text>{user.email}</Text>
+
             {user && (
             <Button title="Cerrar sesión" onPress={handleLogout} />
             )}
