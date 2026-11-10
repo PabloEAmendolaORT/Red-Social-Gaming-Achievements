@@ -61,3 +61,22 @@ export async function listRoms(userId) {
         db.close();
     }
 }
+
+export async function getRom(userId, fingerprint) {
+    const db = await openRomDatabase();
+
+    try {
+        return await new Promise((resolve, reject) => {
+            const transaction = db.transaction('roms', 'readonly');
+            const store = transaction.objectStore('roms');
+            const request = store.get([userId, fingerprint]);
+
+            transaction.oncomplete = () => resolve(request.result ?? null);
+            transaction.onabort = () => {
+                reject(transaction.error ?? new Error('No se pudo leer la ROM.'));
+            };
+        });
+    } finally {
+        db.close();
+    }
+}

@@ -243,6 +243,12 @@ export default function App() {
             .map((rom) => (
               <View key={rom.fingerprint}>
                 <Text>{titlesByFingerprint.get(rom.fingerprint) ?? rom.file.name}</Text>
+                <Link href={{
+                    pathname: '/play/[fingerprint]',
+                    params: { fingerprint: rom.fingerprint },
+                }}>
+                    Jugar
+                </Link>
                 {/\.gba$/i.test(rom.file.name) ? (
                 <Button
                   title="Identificar juego"
