@@ -1,12 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, FlatList } from 'react-native';
-import { useState, useContext } from 'react';
+import { StyleSheet, Text, View, FlatList, Button } from 'react-native';
+import { useState, useContext, useEffect } from 'react';
 import { Link } from 'expo-router';
 import { getGames } from '../services/gameService';
 import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
-import { saveRom } from '../services/romStorage';
-import { Button } from 'react-native';
+import { saveRom, listRoms } from '../services/romStorage';
 
 export default function App() {
   
@@ -15,6 +14,31 @@ export default function App() {
   const { user, isRestoringSession } = useContext(AuthContext);
   const [isSavingRom, setIsSavingRom] = useState(false);
   const [romMessage, setRomMessage] = useState('');
+  const userId = user?.id;
+  const [savedRoms, setSavedRoms] = useState([]);
+  const [isLoadingRoms, setIsLoadingRoms] = useState(true);
+
+  useEffect(() => {
+    if (isRestoringSession || !userId) return;
+
+    let ignore = false;
+    setIsLoadingRoms(true);
+
+    async function loadRoms() {
+      try {
+        const roms = await listRoms(userId);
+        if(!ignore) setSavedRoms(roms);
+      } catch {
+        if (!ignore) setRomError('No se pudieron cargar las ROMs guardadas.');
+      } finally {
+        if (!ignore) setIsLoadingRoms(false);
+      }
+    }
+
+    loadRoms();
+  
+    return () => { ignore = true; };
+  }, [userId, isRestoringSession]);
 
   function handleRomChange(event) {
       const input = event.currentTarget;
@@ -35,7 +59,7 @@ export default function App() {
   }
 
   async function handleSaveRom() {
-    if (isRestoringSession || !user || !selectedRom || isSavingRom) return;
+    if (isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms) return;
     
     setRomError('');
     setRomMessage('');
@@ -43,6 +67,10 @@ export default function App() {
     
     try {
       const savedRom = await saveRom(user.id, selectedRom);
+      setSavedRoms((previous) => [
+        ...previous.filter((rom) => rom.fingerprint !== savedRom.fingerprint),
+        savedRom,
+      ]);
       setRomMessage(`ROM guardada correctamente: ${savedRom.file.name}`);
     } catch {
       setRomError('No se pudo guardar la ROM.');
@@ -69,11 +97,23 @@ export default function App() {
       <Button
         title={isSavingRom ? 'Guardando ROM...' : 'Guardar ROM'}
         onPress={handleSaveRom}
-        disabled={isRestoringSession || !user || !selectedRom || isSavingRom}
+        disabled={isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms}
       />
       {romMessage ? <Text>{romMessage}</Text> : null}
-      
+
       {romError ? <Text>{romError}</Text> : null}
+
+      {userId ? (
+        <View>
+          <Text>ROMs guardadas en este navegador:</Text>
+          {isLoadingRoms ?  <Text>Cargando ROMs...</Text> : null}
+          {savedRoms
+            .filter((rom) => rom.userId === userId)
+            .map((rom) => (
+              <Text key={rom.fingerprint}>{rom.file.name}</Text>
+            ))}
+        </View>
+      ) : null}
 
       <FlatList
         data={getGames()}

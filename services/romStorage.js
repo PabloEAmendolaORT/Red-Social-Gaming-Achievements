@@ -41,3 +41,23 @@ export async function saveRom(userId, file) {
         db.close();
     }
 }
+
+export async function listRoms(userId) {
+    const db = await openRomDatabase();
+
+    try{
+        return await new Promise((resolve, reject) => {
+            const transaction = db.transaction('roms', 'readonly');
+            const store = transaction.objectStore('roms');
+            const request = store.index('byUser').getAll(userId);
+
+            transaction.oncomplete = () => resolve(request.result);
+            transaction.onabort = () => {
+                reject(transaction.error ?? new Error('No se pudieron listar las ROMs.'));
+            };
+        });
+
+    } finally {
+        db.close();
+    }
+}
