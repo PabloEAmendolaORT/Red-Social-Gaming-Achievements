@@ -1,0 +1,19 @@
+{
+  "project": "skylersaleh/SkyEmu",
+  "branch": "gh-pages",
+  "commit": "155cb39a6ec3e32d2fe92b3e2f6c31333b87bd56",
+  "directory": "v5",
+  "source": "https://github.com/skylersaleh/SkyEmu/tree/155cb39a6ec3e32d2fe92b3e2f6c31333b87bd56/v5",
+  "assets": [
+    {
+      "name": "SkyEmu.js",
+      "bytes": 206565,
+      "sha256": "f9d1dc20ad3ebb89755b54323b9e3ad1dcbbc585bc21ec072d7f761bcdc260a8"
+    },
+    {
+      "name": "SkyEmu.wasm",
+      "bytes": 2993772,
+      "sha256": "5a0ef8472fdf7599a4e1edd3172e744519a4b9979f1124c6273b38a9c3b674b3"
+    }
+  ]
+}

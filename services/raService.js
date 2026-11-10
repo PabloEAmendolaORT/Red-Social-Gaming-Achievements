@@ -35,3 +35,10 @@ export function searchRaGames(consoleId, title) {
         .order('title')
         .limit(20);
 }
+
+export function resolveRaGameId(hash) {
+    return supabase.functions.invoke('ra-emulator', {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ r: 'gameid', m: hash }).toString(),
+    });
+}

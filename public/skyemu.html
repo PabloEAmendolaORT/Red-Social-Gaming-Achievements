@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>SkyEmu en PNT2</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #111;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #status {
+            position: absolute;
+            margin: 8px;
+            color: white;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <p id="status">Página del emulador cargada.</p>
+    <canvas id="canvas" width="480" height="320" tabindex="0"></canvas>
+    <script>
+        let engineReady = false;
+        let storageReady = false;
+
+        function notifyReady() {
+            if (!engineReady || !storageReady) return;
+
+            document.getElementById('status').textContent = 'SkyEmu listo.';
+            window.parent.postMessage({ type: 'skyemu-ready' }, window.location.origin);
+        }
+
+        var Module = {
+            canvas: document.getElementById('canvas'),
+            locateFile: (filename) => `/vendor/skyemu/${filename}`,
+            print: () => {},
+            printErr: () => console.error('SkyEmu informó un error interno.'),
+
+            preRun: [() => {
+                const originalSync = FS.syncfs;
+                const accountId = new URLSearchParams(window.location.search).get('account');
+                const databaseName = accountId
+                    ? `pnt2-skyemu-${accountId}`
+                    : 'pnt2-skyemu-preview';
+
+                const originalGetDB = IDBFS.getDB;
+
+                IDBFS.getDB = function (name, callback) {
+                    const scopedName = name === '/offline' ? databaseName : name;
+                    return originalGetDB.call(IDBFS, scopedName, callback);
+                };
+
+                FS.syncfs = function (populate, callback) {
+                    if (populate !== true) {
+                        return originalSync.call(FS, populate, callback);
+                    }
+
+                    FS.syncfs = originalSync;
+
+                    return originalSync.call(FS, true, (error) => {
+                        callback(error);
+
+                        if (error) {
+                            document.getElementById('status').textContent =
+                                'No se pudieron recuperar los archivos de SkyEmu.';
+                            return;
+                        }
+
+                        storageReady = true;
+                        notifyReady();
+                    });
+                };
+            }],
+
+            postRun: [() => {
+                engineReady = true;
+                notifyReady();
+            }],
+        };
+
+        window.addEventListener('message', (event) => {
+            if (event.origin !== window.location.origin || event.source !== window.parent) return;
+
+            if (event.data?.type === 'skyemu-sync-request') {
+                FS.syncfs(false, (error) => {
+                    window.parent.postMessage(
+                        { type: 'skyemu-sync-result', ok: !error },
+                        window.location.origin
+                    );
+                });
+
+                return;
+            }
+            if (event.data?.type !== 'skyemu-load') return;
+
+            const file = event.data.file;
+            if (!(file instanceof File)) return;
+
+            const status = document.getElementById('status');
+
+            if (typeof Module.sokol_drop !== 'function') {
+                status.textContent = 'El cargador de SkyEmu no está disponible.';
+                return;
+            }
+
+            const dropEvent = {
+                dataTransfer: { files: [file] },
+                clientX: 20,
+                clientY: 20,
+                preventDefault() {},
+                stopPropagation() {},
+            };
+
+            Module.sokol_drop(dropEvent);
+            Module.canvas.focus();
+            status.textContent = `ROM entregada a SkyEmu: ${file.name}`;
+
+        });
+
+    </script>
+    <script src="/vendor/skyemu/SkyEmu.js"></script>
+</body>
+</html>
