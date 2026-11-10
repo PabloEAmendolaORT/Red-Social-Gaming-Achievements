@@ -1,6 +1,7 @@
 const games = [
   {
     "id": "pokemon-firered",
+    "raGameId": 515,
     "title": "Pokemon Fire Red",
     "system": "GBA",
     "unlockedAchievements": 1,

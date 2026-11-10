@@ -19,3 +19,9 @@ export function getRaLink(userId) {
         .eq('user_id', userId)
         .maybeSingle();
 }
+
+export function getRaProgress(gameId) {
+    return supabase.functions.invoke('ra-progress', {
+        body: { gameId },
+    });
+}
