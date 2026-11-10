@@ -25,3 +25,13 @@ export function getRaProgress(gameId) {
         body: { gameId },
     });
 }
+
+export function searchRaGames(consoleId, title) {
+    return supabase
+        .from('ra_game_catalog')
+        .select('ra_game_id, title')
+        .eq('console_id', consoleId)
+        .ilike('title', `%${title.trim()}%`)
+        .order('title')
+        .limit(20);
+}

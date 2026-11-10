@@ -17,6 +17,13 @@ export function saveLibraryEntry({userId, fingerprint, file }) {
 export function listLibraryEntries(userId) {
     return supabase
         .from('library_entries')
-        .select('rom_fingerprint, rom_name, ra_game_id')
+        .select('rom_fingerprint, rom_name, ra_game_id, game:ra_game_catalog(title)')
         .eq('user_id', userId);
+}
+
+export function identifyLibraryEntry(fingerprint, raGameId) {
+    return supabase.rpc('identify_library_entry', {
+        p_rom_fingerprint: fingerprint,
+        p_ra_game_id: raGameId,
+    });
 }

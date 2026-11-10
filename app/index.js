@@ -1,12 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, FlatList, Button } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Button, TextInput } from 'react-native';
 import { useState, useContext, useEffect } from 'react';
 import { Link } from 'expo-router';
 import { getGames } from '../services/gameService';
 import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
 import { saveRom, listRoms } from '../services/romStorage';
-import { saveLibraryEntry, listLibraryEntries } from '../services/libraryService';
+import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry } from '../services/libraryService';
+import { searchRaGames } from '../services/raService';
 
 export default function App() {
   
@@ -19,6 +20,12 @@ export default function App() {
   const [savedRoms, setSavedRoms] = useState([]);
   const [isLoadingRoms, setIsLoadingRoms] = useState(true);
   const [remoteLibrary, setRemoteLibrary] = useState(null);
+  const [romToIdentify, setRomToIdentify] = useState(null);
+  const [gameTitle, setGameTitle] = useState('');
+  const [gameResults, setGameResults] = useState([]);
+  const [catalogMessage, setCatalogMessage] = useState('');
+  const [isSearchingGames, setIsSearchingGames] = useState(false);
+  const [isIdentifyingRom, setIsIdentifyingRom] = useState(false);
 
   useEffect(() => {
     if (isRestoringSession || !userId) return;
@@ -120,8 +127,90 @@ export default function App() {
         rom.userId === userId && rom.fingerprint === entry.rom_fingerprint
       )
     )
-    : [];
+  : [];
     
+  async function handleSearchGames() {
+    const title = gameTitle.trim();
+    setGameResults([]);
+
+    if (!title) {
+        setCatalogMessage('Escribí un título para buscar.');
+        return;
+    }
+
+    setCatalogMessage('');
+    setIsSearchingGames(true);
+
+    try {
+        const { data, error } = await searchRaGames(5, title);
+        if (error) throw error;
+
+        setGameResults(data);
+        if (data.length === 0) setCatalogMessage('No se encontraron juegos.');
+    } catch {
+        setCatalogMessage('No se pudo consultar el catálogo.');
+    } finally {
+        setIsSearchingGames(false);
+    }
+  }
+
+  async function handleIdentifyGame(game){
+    if (!romToIdentify || romToIdentify.userId !== userId || isIdentifyingRom) return;
+
+    setCatalogMessage('');
+    setIsIdentifyingRom(true);
+    
+    try {
+      const { data, error } = await identifyLibraryEntry(
+        romToIdentify.fingerprint,
+        game.ra_game_id
+      );
+
+      if (error || data !== true) {
+        setCatalogMessage('No se pudo guardar la asociación.');
+        return;
+      }
+
+      const identifiedEntry = {
+        rom_fingerprint: romToIdentify.fingerprint,
+        rom_name: romToIdentify.file.name,
+        ra_game_id: game.ra_game_id,
+        game: { title: game.title },
+      };
+
+      setRemoteLibrary((current) => {
+        if (current && current.userId !== userId) return current;
+
+        const entries = current?.entries ?? [];
+
+        return {
+          userId,
+          entries: [
+            ...entries.filter(
+              (entry) => entry.rom_fingerprint !== identifiedEntry.rom_fingerprint
+            ),
+            identifiedEntry,
+          ],
+        };
+      });
+
+      setGameResults([]);
+      setCatalogMessage(`Juego identificado: ${game.title}`);
+    } catch {
+      setCatalogMessage('No se pudo guardar la asociación.');
+    } finally {
+      setIsIdentifyingRom(false);
+    }
+  }
+
+  const libraryEntries = remoteLibrary && remoteLibrary.userId === userId
+    ? remoteLibrary.entries
+    : [];
+
+  const titlesByFingerprint = new Map(
+    libraryEntries.map((entry) => [entry.rom_fingerprint, entry.game?.title])
+  );
+  
   return (
     <View style={styles.container}>
       <Text>Biblioteca de juegos</Text>
@@ -139,7 +228,7 @@ export default function App() {
       <Button
         title={isSavingRom ? 'Guardando ROM...' : 'Guardar ROM'}
         onPress={handleSaveRom}
-        disabled={isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms}
+        disabled={isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms || isIdentifyingRom}
       />
       {romMessage ? <Text>{romMessage}</Text> : null}
 
@@ -152,23 +241,64 @@ export default function App() {
           {savedRoms
             .filter((rom) => rom.userId === userId)
             .map((rom) => (
-              <Text key={rom.fingerprint}>{rom.file.name}</Text>
+              <View key={rom.fingerprint}>
+                <Text>{titlesByFingerprint.get(rom.fingerprint) ?? rom.file.name}</Text>
+                {/\.gba$/i.test(rom.file.name) ? (
+                <Button
+                  title="Identificar juego"
+                  disabled={isSearchingGames || isIdentifyingRom}
+                  onPress={() => {
+                      setRomToIdentify(rom);
+                      setGameTitle('');
+                      setGameResults([]);
+                      setCatalogMessage('');
+                  }}
+                />
+                ) : null}
+              </View>
             ))}
           {!isLoadingRoms && missingRoms.map((entry) =>
           <Text key={entry.rom_fingerprint}>
-            {entry.rom_name} · Seleccioná la ROM en este navegador
+            {entry.game?.title ?? entry.rom_name} · Seleccioná la ROM en este navegador
           </Text>
           )}
         </View>
         ) : null}
 
-      <FlatList
-        data={getGames()}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <GameCard game={item} />
-        )}
-      />
+        <FlatList
+          data={getGames()}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <GameCard game={item} />
+          )}
+        />
+
+        {romToIdentify && romToIdentify.userId === userId ? (
+            <View>
+                <Text>Identificar: {romToIdentify.file.name}</Text>
+                <TextInput
+                    placeholder="Título del juego en GBA"
+                    value={gameTitle}
+                    onChangeText={setGameTitle}
+                    editable={!isSearchingGames}
+                />
+                <Button
+                    title={isSearchingGames ? 'Buscando…' : 'Buscar en el catálogo'}
+                    onPress={handleSearchGames}
+                    disabled={isSearchingGames}
+                />
+                {catalogMessage ? <Text>{catalogMessage}</Text> : null}
+                {gameResults.map((game) => (
+                  <Button
+                      key={game.ra_game_id}
+                      title={`Elegir ${game.title}`}
+                      onPress={() => handleIdentifyGame(game)}
+                      disabled={isIdentifyingRom}
+                  />
+                ))}
+            </View>
+        ) : null}
+
       <Link href="/profile">Perfil de usuario</Link>
     </View>
 
