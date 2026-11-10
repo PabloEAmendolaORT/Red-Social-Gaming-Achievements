@@ -6,6 +6,7 @@ import { getGames } from '../services/gameService';
 import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
 import { saveRom, listRoms } from '../services/romStorage';
+import { saveLibraryEntry, listLibraryEntries } from '../services/libraryService';
 
 export default function App() {
   
@@ -17,6 +18,7 @@ export default function App() {
   const userId = user?.id;
   const [savedRoms, setSavedRoms] = useState([]);
   const [isLoadingRoms, setIsLoadingRoms] = useState(true);
+  const [remoteLibrary, setRemoteLibrary] = useState(null);
 
   useEffect(() => {
     if (isRestoringSession || !userId) return;
@@ -38,6 +40,32 @@ export default function App() {
     loadRoms();
   
     return () => { ignore = true; };
+  }, [userId, isRestoringSession]);
+
+  useEffect(() => {
+    if (isRestoringSession || !userId) return;
+    
+    let ignore = false;
+    
+    async function loadLibrary() {
+      const { data, error } = await listLibraryEntries(userId);
+
+      if (ignore) return;
+
+      if (error) {
+        setRomError('No se pudo cargar la biblioteca de Supabase.');
+        return;
+      }
+
+      setRemoteLibrary({ userId, entries: data});
+    }
+
+    loadLibrary();
+
+    return () => {
+      ignore = true;
+    };
+
   }, [userId, isRestoringSession]);
 
   function handleRomChange(event) {
@@ -72,6 +100,12 @@ export default function App() {
         savedRom,
       ]);
       setRomMessage(`ROM guardada correctamente: ${savedRom.file.name}`);
+      try {
+        const { error } = await saveLibraryEntry(savedRom);
+        if (error) throw error;
+      } catch {
+        setRomError('La ROM se guardó localmente. Volve a tocar Guardar ROM para intentar nuevamente la ficha en Supabase.');
+      }
     } catch {
       setRomError('No se pudo guardar la ROM.');
     } finally {
@@ -80,6 +114,14 @@ export default function App() {
 
   }
 
+  const missingRoms = remoteLibrary && remoteLibrary?.userId === userId
+    ? remoteLibrary.entries.filter((entry)=>
+      !savedRoms.some((rom) =>
+        rom.userId === userId && rom.fingerprint === entry.rom_fingerprint
+      )
+    )
+    : [];
+    
   return (
     <View style={styles.container}>
       <Text>Biblioteca de juegos</Text>
@@ -112,8 +154,13 @@ export default function App() {
             .map((rom) => (
               <Text key={rom.fingerprint}>{rom.file.name}</Text>
             ))}
+          {!isLoadingRoms && missingRoms.map((entry) =>
+          <Text key={entry.rom_fingerprint}>
+            {entry.rom_name} · Seleccioná la ROM en este navegador
+          </Text>
+          )}
         </View>
-      ) : null}
+        ) : null}
 
       <FlatList
         data={getGames()}
