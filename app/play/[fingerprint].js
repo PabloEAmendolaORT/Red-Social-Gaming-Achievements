@@ -3,7 +3,6 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { Text, View, Button } from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
 import { getRom } from '../../services/romStorage';
-import { resolveRaGameId } from '../../services/raService';
 
 export default function Play() {
     const { fingerprint } = useLocalSearchParams();
@@ -117,20 +116,6 @@ export default function Play() {
             {current?.error ? <Text>No se pudo leer la ROM.</Text> : null}
             {current?.rom === null ? <Text>Seleccioná la ROM en este navegador.</Text> : null}
             {current?.rom ? <Text>ROM lista: {current.rom.file.name}</Text> : null}
-            <Button
-                title="Probar identificación de FireRed"
-                onPress={async () => {
-                    const { data, error } = await resolveRaGameId(
-                        '51901a6e40661b3914aa333c802e24e8'
-                    );
-
-                    if (error) {
-                        console.error('Falló la identificación:', error.context?.status ?? error.message);
-                    } else {
-                        console.info('GameID devuelto por RetroAchievements:', data.GameID);
-                    }
-                }}
-            />
             {current?.rom ? (
                 <iframe
                     title="Emulador SkyEmu"

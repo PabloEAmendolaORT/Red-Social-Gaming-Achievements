@@ -6,8 +6,8 @@ import { getGames } from '../services/gameService';
 import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
 import { saveRom, listRoms } from '../services/romStorage';
-import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry } from '../services/libraryService';
-import { searchRaGames } from '../services/raService';
+import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry, autoIdentifyLibraryEntry } from '../services/libraryService';
+import { searchRaGames, resolveRaGameId, getRaRomHash } from '../services/raService';
 
 export default function App() {
   
@@ -93,6 +93,37 @@ export default function App() {
       setSelectedRom(file);
   }
 
+  async function tryAutoIdentify(savedRom) {
+    const entry = libraryEntries.find(
+        (item) => item.rom_fingerprint === savedRom.fingerprint
+    );
+
+    if (entry?.ra_game_id) return;
+
+    try {
+      const hash = await getRaRomHash(savedRom.file);
+      const { data, error } = await resolveRaGameId(hash);
+      if (error) throw error;
+
+      const gameId = data?.GameID;
+      if (!Number.isInteger(gameId) || gameId <= 0) return;
+
+      const { data: title, error: linkError } = await autoIdentifyLibraryEntry(
+          savedRom.fingerprint,
+          gameId
+      );
+      if (linkError) throw linkError;
+      if (!title) return;
+
+      setRomMessage(`ROM guardada e identificada: ${title}`);
+
+      const { data: entries } = await listLibraryEntries(savedRom.userId);
+      if (entries) setRemoteLibrary({ userId: savedRom.userId, entries });
+    } catch {
+      setRomMessage('ROM guardada. Podés identificarla desde el catálogo.');
+    }
+  }
+
   async function handleSaveRom() {
     if (isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms) return;
     
@@ -110,6 +141,7 @@ export default function App() {
       try {
         const { error } = await saveLibraryEntry(savedRom);
         if (error) throw error;
+        await tryAutoIdentify(savedRom);
       } catch {
         setRomError('La ROM se guardó localmente. Volve a tocar Guardar ROM para intentar nuevamente la ficha en Supabase.');
       }

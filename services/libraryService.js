@@ -27,3 +27,10 @@ export function identifyLibraryEntry(fingerprint, raGameId) {
         p_ra_game_id: raGameId,
     });
 }
+
+export function autoIdentifyLibraryEntry(fingerprint, raGameId) {
+    return supabase.rpc('auto_identify_library_entry', {
+        p_rom_fingerprint: fingerprint,
+        p_ra_game_id: raGameId,
+    });
+}

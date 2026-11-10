@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient';
+import { md5 } from '@noble/hashes/legacy.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 export function searchRaProfile(username) {
     return supabase.functions.invoke('ra-profile', {
@@ -41,4 +43,9 @@ export function resolveRaGameId(hash) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ r: 'gameid', m: hash }).toString(),
     });
+}
+
+export async function getRaRomHash(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    return bytesToHex(md5(bytes));
 }
