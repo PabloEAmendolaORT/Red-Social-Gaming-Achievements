@@ -3,6 +3,7 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { Text, View, Button } from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
 import { getRom } from '../../services/romStorage';
+import { sendRaEmulatorRequest } from '../../services/raService';
 
 export default function Play() {
     const { fingerprint } = useLocalSearchParams();
@@ -35,9 +36,31 @@ export default function Play() {
     }, [userId, fingerprint, isRestoringSession]);
 
     useEffect(() => {
-        function handleEmulatorMessage(event) {
+        async function handleEmulatorMessage(event) {
             if (event.origin !== window.location.origin) return;
             if (event.source !== iframeRef.current?.contentWindow) return;
+            if (event.data?.type === 'skyemu-ra-request') {
+                const { requestId, body } = event.data;
+                const frameWindow = event.source;
+
+                if (typeof requestId !== 'string' || typeof body !== 'string') return;
+
+                let result;
+
+                try {
+                    result = await sendRaEmulatorRequest(body);
+                } catch {
+                    result = { status: 502, body: '' };
+                }
+
+                if (frameWindow !== iframeRef.current?.contentWindow) return;
+
+                frameWindow.postMessage(
+                    { type: 'skyemu-ra-response', requestId, ...result },
+                    event.origin
+                );
+                return;
+            }
             if (event.data?.type === 'skyemu-sync-result') {
             if (!exitPending.current) return;
 
@@ -61,7 +84,7 @@ export default function Play() {
 
         window.addEventListener('message', handleEmulatorMessage);
         return () => window.removeEventListener('message', handleEmulatorMessage);
-    }, []);
+    }, [router]);
 
     const current = result && result.userId === userId && result.fingerprint === fingerprint
     ? result

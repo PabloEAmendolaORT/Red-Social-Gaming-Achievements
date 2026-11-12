@@ -49,3 +49,22 @@ export async function getRaRomHash(file) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     return bytesToHex(md5(bytes));
 }
+
+export async function sendRaEmulatorRequest(body) {
+    const { data, error, response } = await supabase.functions.invoke(
+        'ra-emulator',
+        {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+        }
+    );
+
+    if (!response) {
+        return { status: 502, body: '' };
+    }
+
+    return {
+        status: response.status,
+        body: error ? await response.text() : JSON.stringify(data),
+    };
+}

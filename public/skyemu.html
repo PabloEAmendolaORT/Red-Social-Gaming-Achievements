@@ -88,8 +88,40 @@
             }],
         };
 
+        const pendingRaRequests = new Map();
+
+        function requestRaFromParent(body) {
+            return new Promise((resolve) => {
+                const requestId = crypto.randomUUID();
+
+                const timeout = setTimeout(() => {
+                    pendingRaRequests.delete(requestId);
+                    resolve({ status: 504, body: '' });
+                }, 15000);
+
+                pendingRaRequests.set(requestId, { resolve, timeout });
+
+                window.parent.postMessage(
+                    { type: 'skyemu-ra-request', requestId, body },
+                    window.location.origin
+                );
+            });
+        }
+
         window.addEventListener('message', (event) => {
             if (event.origin !== window.location.origin || event.source !== window.parent) return;
+
+            if (event.data?.type === 'skyemu-ra-response') {
+                const { requestId, status, body } = event.data;
+                const pending = pendingRaRequests.get(requestId);
+
+                if (!pending) return;
+
+                clearTimeout(pending.timeout);
+                pendingRaRequests.delete(requestId);
+                pending.resolve({ status, body });
+                return;
+            }
 
             if (event.data?.type === 'skyemu-sync-request') {
                 FS.syncfs(false, (error) => {
@@ -126,6 +158,48 @@
             status.textContent = `ROM entregada a SkyEmu: ${file.name}`;
 
         });
+
+        const originalOpen = XMLHttpRequest.prototype.open;
+        const originalSend = XMLHttpRequest.prototype.send;
+        const raRequests = new WeakSet();
+
+        XMLHttpRequest.prototype.open = function (method, url, ...options) {
+            const target = new URL(url, window.location.href);
+
+            raRequests.delete(this);
+
+            if (
+                method.toUpperCase() === 'POST' &&
+                target.origin === 'https://api.achieve.skyemoo.pandasemi.co' &&
+                target.pathname === '/dorequest.php' &&
+                !target.search
+            ) {
+                raRequests.add(this);
+            }
+
+            return originalOpen.call(this, method, url, ...options);
+        };
+
+        XMLHttpRequest.prototype.send = function (body) {
+            if (!raRequests.has(this)) {
+                return originalSend.call(this, body);
+            }
+
+            const form = new TextDecoder().decode(body);
+
+            requestRaFromParent(form).then(({ status, body: responseBody }) => {
+                Object.defineProperties(this, {
+                    status: { value: status, configurable: true },
+                    response: {
+                        value: new TextEncoder().encode(responseBody).buffer,
+                        configurable: true,
+                    },
+                });
+
+                console.info('Respuesta del puente RA:', status);
+                this.dispatchEvent(new Event('load'));
+            });
+        };
 
     </script>
     <script src="/vendor/skyemu/SkyEmu.js"></script>
