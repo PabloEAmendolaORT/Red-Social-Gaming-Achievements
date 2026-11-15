@@ -28,6 +28,18 @@ export function getRaProgress(gameId) {
     });
 }
 
+export function startPlaySession(fingerprint) {
+    return supabase.functions.invoke('ra-progress', {
+        body: { action: 'start', fingerprint },
+    });
+}
+
+export function finishPlaySession(sessionId) {
+    return supabase.functions.invoke('ra-progress', {
+        body: { action: 'finish', sessionId },
+    });
+}
+
 export function searchRaGames(consoleId, title) {
     return supabase
         .from('ra_game_catalog')

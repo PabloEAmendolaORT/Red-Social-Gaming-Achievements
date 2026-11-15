@@ -34,3 +34,12 @@ export function autoIdentifyLibraryEntry(fingerprint, raGameId) {
         p_ra_game_id: raGameId,
     });
 }
+
+export function getLibraryEntry(userId, fingerprint) {
+    return supabase
+        .from('library_entries')
+        .select('ra_game_id')
+        .eq('user_id', userId)
+        .eq('rom_fingerprint', fingerprint)
+        .maybeSingle();
+}

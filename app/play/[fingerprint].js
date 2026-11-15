@@ -3,19 +3,21 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { Text, View, Button } from 'react-native';
 import { AuthContext } from '../../context/AuthContext';
 import { getRom } from '../../services/romStorage';
-import { sendRaEmulatorRequest } from '../../services/raService';
+import { sendRaEmulatorRequest, finishPlaySession, startPlaySession } from '../../services/raService';
 
 export default function Play() {
     const { fingerprint } = useLocalSearchParams();
     const { user, isRestoringSession } = useContext(AuthContext);
     const userId = user?.id;
-    const [result, setResult] = useState(null);
-    const iframeRef = useRef(null);
     const [readyMessage, setReadyMessage] = useState(null);
-    const router = useRouter();
-    const exitPending = useRef(false);
+    const [result, setResult] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [exitError, setExitError] = useState('');
+    const iframeRef = useRef(null);
+    const initialProgress = useRef(null);
+    const sessionStart = useRef(null);
+    const exitPending = useRef(false);
+    const router = useRouter();
 
     useEffect(() => {
         if (isRestoringSession || !userId || typeof fingerprint !== 'string') return;
@@ -62,24 +64,44 @@ export default function Play() {
                 return;
             }
             if (event.data?.type === 'skyemu-sync-result') {
-            if (!exitPending.current) return;
+                if (!exitPending.current) return;
+                exitPending.current = false;
 
-            exitPending.current = false;
-            setIsSyncing(false);
+                if (event.data.ok !== true) {
+                    setIsSyncing(false);
+                    setExitError('No se pudo sincronizar la partida. Volvé a intentar.');
+                    return;
+                }
 
-            if (event.data.ok === true) {
-                router.replace('/');
-            } else {
-                setExitError('No se pudo sincronizar la partida. Volvé a intentar.');
-            }
+                const frameWindow = event.source;
+                const before = initialProgress.current;
+                const params = { playedRom: fingerprint };
 
-            return;
+                if (before?.sessionId) {
+                    try {
+                        const { data, error } = await finishPlaySession(before.sessionId);
+                        if (error) throw error;
+
+                        if (data?.status === 'complete' && Array.isArray(data.newUnlockedIds)) {
+                            params.newAchievements = String(data.newUnlockedIds.length);
+                        }
+                    } catch {
+                        console.warn('No se pudo confirmar el cierre de la sesión.');
+                    }
+                }
+
+                if (frameWindow !== iframeRef.current?.contentWindow) return;
+
+                setIsSyncing(false);
+                router.replace({ pathname: '/', params });
+                return;
             }
 
             if (event.data?.type !== 'skyemu-ready') return;
 
-            setReadyMessage({ source: event.source });
-
+            setReadyMessage((previous) =>
+                previous?.source === event.source ? previous : { source: event.source }
+            );
         }
 
         window.addEventListener('message', handleEmulatorMessage);
@@ -95,13 +117,50 @@ export default function Play() {
     useEffect(() => {
         const frameWindow = iframeRef.current?.contentWindow;
 
-        if (!file || !frameWindow || readyMessage?.source !== frameWindow) return;
+        if (!userId || !file || !frameWindow || readyMessage?.source !== frameWindow) return;
 
-        frameWindow.postMessage(
-            { type: 'skyemu-load', file },
-            window.location.origin
-        );
-    }, [file, readyMessage]);
+        let ignore = false;
+        initialProgress.current = null;
+
+        async function startGame() {
+            try {
+                const start = sessionStart.current;
+
+                if (start?.frameWindow !== frameWindow || start?.userId !== userId ||
+                    start?.fingerprint !== fingerprint) {
+                    sessionStart.current = {
+                        frameWindow,
+                        userId,
+                        fingerprint,
+                        request: startPlaySession(fingerprint),
+                    };
+                }
+
+                const { data, error } = await sessionStart.current.request;
+                if (error) throw error;
+
+                if (!ignore && data?.sessionId && Array.isArray(data.unlockedIds)) {
+                    initialProgress.current = {
+                        sessionId: data.sessionId,
+                        gameId: data.gameId,
+                        unlockedIds: data.unlockedIds,
+                    };
+                }
+            } catch {
+                if (!ignore) console.info('No se pudo registrar el inicio de la partida.');
+            }
+
+            if (ignore || frameWindow !== iframeRef.current?.contentWindow) return;
+
+            frameWindow.postMessage(
+                { type: 'skyemu-load', file },
+                window.location.origin
+            );
+        }
+
+        startGame();
+        return () => { ignore = true; };
+    }, [file, readyMessage, userId, fingerprint]);
 
     function handleExit() {
         if (exitPending.current) return;

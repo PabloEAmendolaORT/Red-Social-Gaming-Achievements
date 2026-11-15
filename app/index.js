@@ -1,13 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, FlatList, Button, TextInput } from 'react-native';
 import { useState, useContext, useEffect } from 'react';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { getGames } from '../services/gameService';
 import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
 import { saveRom, listRoms } from '../services/romStorage';
 import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry, autoIdentifyLibraryEntry } from '../services/libraryService';
-import { searchRaGames, resolveRaGameId, getRaRomHash } from '../services/raService';
+import { searchRaGames, resolveRaGameId, getRaRomHash, getRaProgress } from '../services/raService';
 
 export default function App() {
   
@@ -26,6 +26,8 @@ export default function App() {
   const [catalogMessage, setCatalogMessage] = useState('');
   const [isSearchingGames, setIsSearchingGames] = useState(false);
   const [isIdentifyingRom, setIsIdentifyingRom] = useState(false);
+  const { playedRom, newAchievements } = useLocalSearchParams();
+  const [playedProgress, setPlayedProgress] = useState(null);
 
   useEffect(() => {
     if (isRestoringSession || !userId) return;
@@ -239,6 +241,38 @@ export default function App() {
     ? remoteLibrary.entries
     : [];
 
+    const playedEntry = typeof playedRom === 'string'
+    ? libraryEntries.find((entry) => entry.rom_fingerprint === playedRom)
+    : null;
+    const playedGameId = playedEntry?.ra_game_id;
+
+    useEffect(() => {
+      setPlayedProgress(null);
+      if (!userId || !playedGameId) return;
+
+      let ignore = false;
+
+      async function loadPlayedProgress() {
+          try {
+            const { data, error } = await getRaProgress(playedGameId);
+            if (error || !data) throw error ?? new Error('Progreso ausente.');
+
+            if (!ignore) setPlayedProgress({ userId, playedRom, data });
+          } catch (error) {
+            if (!ignore) {
+              setPlayedProgress({
+                userId,
+                playedRom,
+                errorStatus: error?.context?.status ?? 0,
+              });
+            }
+          }
+      }
+
+      loadPlayedProgress();
+      return () => { ignore = true; };
+    }, [userId, playedRom, playedGameId]);
+
   const titlesByFingerprint = new Map(
     libraryEntries.map((entry) => [entry.rom_fingerprint, entry.game?.title])
   );
@@ -246,6 +280,23 @@ export default function App() {
   return (
     <View style={styles.container}>
       <Text>Biblioteca de juegos</Text>
+
+      {playedEntry && playedProgress?.userId === userId &&
+      playedProgress.playedRom === playedRom ? (
+        playedProgress.errorStatus === 404 ? (
+          <Link href="/profile">Asociá tu cuenta de RetroAchievements para ver el progreso.</Link>
+        ) : playedProgress.errorStatus !== undefined ? (
+          <Text>No se pudo actualizar el progreso de RetroAchievements.</Text>
+        ) : (
+          <Text>
+            {playedEntry.game?.title ?? playedEntry.rom_name}: {playedProgress.data.unlocked} de {playedProgress.data.total} logros
+          </Text>
+        )
+      ) : null}
+
+      {playedEntry && typeof newAchievements === 'string' ? (
+        <Text>Logros nuevos en esta sesión: {newAchievements}</Text>
+      ) : null}
 
       <StatusBar style="auto" />
 
