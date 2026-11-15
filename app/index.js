@@ -7,7 +7,7 @@ import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
 import { saveRom, listRoms } from '../services/romStorage';
 import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry, autoIdentifyLibraryEntry } from '../services/libraryService';
-import { searchRaGames, resolveRaGameId, getRaRomHash, getRaProgress } from '../services/raService';
+import { searchRaGames, resolveRaGameId, getRaRomHash, getRaProgress, listPendingPlaySessions, finishPlaySession } from '../services/raService';
 
 export default function App() {
   
@@ -28,6 +28,28 @@ export default function App() {
   const [isIdentifyingRom, setIsIdentifyingRom] = useState(false);
   const { playedRom, newAchievements } = useLocalSearchParams();
   const [playedProgress, setPlayedProgress] = useState(null);
+  const [pendingResult, setPendingResult] = useState(null);
+  const [retryingSessionId, setRetryingSessionId] = useState(null);
+
+  useEffect(() => {
+      if (isRestoringSession || !userId) return;
+
+      let ignore = false;
+
+      async function loadPendingSessions() {
+          try {
+              const { data, error } = await listPendingPlaySessions(userId);
+              if (error) throw error;
+
+              if (!ignore) setPendingResult({ userId, sessions: data });
+          } catch {
+              if (!ignore) setPendingResult({ userId, error: true });
+          }
+      }
+
+      loadPendingSessions();
+      return () => { ignore = true; };
+  }, [userId, isRestoringSession]);
 
   useEffect(() => {
     if (isRestoringSession || !userId) return;
@@ -276,6 +298,41 @@ export default function App() {
   const titlesByFingerprint = new Map(
     libraryEntries.map((entry) => [entry.rom_fingerprint, entry.game?.title])
   );
+
+  async function handleRetrySession(sessionId) {
+    if (retryingSessionId !== null) return;
+
+    setRetryingSessionId(sessionId);
+
+    try {
+        const { data, error } = await finishPlaySession(sessionId);
+        if (error) throw error;
+
+        const complete = data?.status === 'complete';
+
+        setPendingResult((current) => {
+            if (current?.userId !== userId) return current;
+
+            return {
+                ...current,
+                sessions: complete
+                    ? current.sessions.filter((session) => session.id !== sessionId)
+                    : current.sessions,
+                message: complete
+                    ? `Sesión sincronizada. Logros nuevos: ${data.newUnlockedIds.length}.`
+                    : 'La sesión sigue pendiente. Podés reintentar más tarde.',
+            };
+        });
+    } catch {
+        setPendingResult((current) => {
+            if (current?.userId !== userId) return current;
+
+            return { ...current, message: 'No se pudo sincronizar la sesión.' };
+        });
+    } finally {
+        setRetryingSessionId(null);
+    }
+  }
   
   return (
     <View style={styles.container}>
@@ -296,6 +353,32 @@ export default function App() {
 
       {playedEntry && typeof newAchievements === 'string' ? (
         <Text>Logros nuevos en esta sesión: {newAchievements}</Text>
+      ) : null}
+
+      {pendingResult?.userId === userId && pendingResult?.error ? (
+          <Text>No se pudieron consultar las sesiones pendientes.</Text>
+      ) : null}
+
+      {pendingResult?.userId === userId && pendingResult?.sessions?.length > 0 ? (
+          <Text>Sesiones pendientes de sincronizar: {pendingResult.sessions.length}</Text>
+      ) : null}
+
+      {pendingResult?.userId === userId ? (
+        <>
+            {pendingResult?.sessions?.map((session) => (
+                <View key={session.id}>
+                    <Text>Partida del {new Date(session.ended_at).toLocaleString()}</Text>
+                    <Button
+                        title={retryingSessionId === session.id
+                            ? 'Sincronizando…'
+                            : 'Reintentar sincronización'}
+                        disabled={retryingSessionId !== null}
+                        onPress={() => handleRetrySession(session.id)}
+                    />
+                </View>
+            ))}
+            {pendingResult?.message ? <Text>{pendingResult.message}</Text> : null}
+        </>
       ) : null}
 
       <StatusBar style="auto" />

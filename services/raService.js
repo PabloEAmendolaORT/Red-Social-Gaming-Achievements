@@ -40,6 +40,15 @@ export function finishPlaySession(sessionId) {
     });
 }
 
+export function listPendingPlaySessions(userId) {
+    return supabase
+        .from('play_sessions')
+        .select('id, ra_game_id, ended_at')
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .order('ended_at', { ascending: false });
+}
+
 export function searchRaGames(consoleId, title) {
     return supabase
         .from('ra_game_catalog')
