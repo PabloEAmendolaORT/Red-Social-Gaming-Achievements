@@ -168,6 +168,24 @@
 
             raRequests.delete(this);
 
+            const isRaImage =
+                /^\/Badge\/\d+(?:_lock)?\.png$/.test(target.pathname) ||
+                /^\/Images\/\d+\.png$/.test(target.pathname) ||
+                /^\/UserPic\/[a-z0-9_-]+\.png$/i.test(target.pathname);
+
+            if (
+                method.toUpperCase() === 'GET' &&
+                target.origin === 'https://api.achieve.skyemoo.pandasemi.co' &&
+                isRaImage
+            ) {
+                return originalOpen.call(
+                    this,
+                    method,
+                    `https://media.retroachievements.org${target.pathname}`,
+                    ...options
+                );
+            }
+
             if (
                 method.toUpperCase() === 'POST' &&
                 target.origin === 'https://api.achieve.skyemoo.pandasemi.co' &&
