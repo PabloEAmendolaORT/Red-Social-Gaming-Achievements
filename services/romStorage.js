@@ -80,3 +80,22 @@ export async function getRom(userId, fingerprint) {
         db.close();
     }
 }
+
+export async function removeRom(userId, fingerprint) {
+    const db = await openRomDatabase();
+
+    try {
+        await new Promise((resolve, reject) => {
+            const transaction = db.transaction('roms', 'readwrite');
+
+            transaction.oncomplete = () => resolve();
+            transaction.onabort = () => {
+                reject(transaction.error ?? new Error('No se pudo quitar la ROM.'));
+            };
+
+            transaction.objectStore('roms').delete([userId, fingerprint]);
+        });
+    } finally {
+        db.close();
+    }
+}

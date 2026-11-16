@@ -1,5 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
-import { Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Page, Panel, Text, TextLink, Title, colors, layout } from "../../components/RetroUI";
 import { getGameById } from "../../services/gameService";
 import { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../../context/AuthContext';
@@ -98,50 +99,98 @@ export default function GameDetails() {
         ? ranking
         : null;
 
-        if (catalogId && isRestoringSession) return <Text>Cargando sesión…</Text>;
-        if (catalogId && !userId) return <Text>Iniciá sesión para ver el juego.</Text>;
-        if (catalogId && !currentCatalog) return <Text>Cargando juego…</Text>;
-        if (catalogId && currentCatalog?.error) return <Text>No se pudo cargar el juego.</Text>;
+    const unavailable = catalogId && isRestoringSession ? 'Cargando sesión…'
+        : catalogId && !userId ? 'Iniciá sesión para ver el juego.'
+        : catalogId && !currentCatalog ? 'Cargando juego…'
+        : catalogId && currentCatalog.error ? 'No se pudo cargar el juego.'
+        : !game ? 'Juego no encontrado.' : null;
 
-    if (!game){
-        return <Text>Juego no encontrado</Text>
+    if (unavailable) {
+        return (
+            <Page>
+                <Text>{unavailable}</Text>
+                <TextLink href="/library">Volver a mi biblioteca</TextLink>
+            </Page>
+        );
     }
-    return (
-        <View>
-            <Text>Detalles del juego {game.title}</Text>
-            {game.system ? <Text>Sistema: {game.system}</Text> : null}
-            {!raGameId ? (
-                <Text>Logros desbloqueados: {game.unlockedAchievements} de {game.totalAchievements}</Text>
-            ) : isRestoringSession ? (
-                <Text>Cargando sesión…</Text>
-            ) : !userId ? (
-                <Text>Iniciá sesión para ver tu progreso.</Text>
-            ) : progressMessage ? (
-                <Text>{progressMessage}</Text>
-            ) : progress ? (
-                <Text>Logros desbloqueados: {progress.unlocked} de {progress.total}</Text>
-            ) : (
-                <Text>Cargando progreso…</Text>
-            )}
-            {userId && raGameId && !isRestoringSession ? (
-                <View>
-                    <Text>Ranking del juego</Text>
-                    {!currentRanking ? (
-                        <Text>Cargando ranking…</Text>
-                    ) : currentRanking.error ? (
-                        <Text>No se pudo cargar el ranking.</Text>
-                    ) : currentRanking.rows.length === 0 ? (
-                        <Text>Todavía no hay partidas con progreso registrado.</Text>
-                    ) : currentRanking.rows.map((row, index) => (
-                        <Text key={index}>
-                            {row.ranking_position}. {row.player_name}{row.is_me ? ' (vos)' : ''}
-                            {' · '}{row.unlocked} de {row.total}{' · '}
-                            {Number(row.percentage).toLocaleString('es-AR')} %
-                        </Text>
-                    ))}
-                </View>
-            ) : null}
-        </View>
-    )
 
-};
+    const achievementCount = raGameId ? progress?.unlocked : game.unlockedAchievements;
+    const achievementTotal = raGameId ? progress?.total : game.totalAchievements;
+    const percentage = achievementTotal > 0
+        ? Math.min(100, Math.max(0, Math.round(achievementCount / achievementTotal * 100)))
+        : null;
+
+    return (
+        <Page>
+            <TextLink href="/library">← Mi biblioteca</TextLink>
+            <View style={styles.header}>
+                {game.system ? <Text tone="meta">{game.system}</Text> : null}
+                <Title>{game.title}</Title>
+            </View>
+            <Panel>
+                <Text tone="heading" accessibilityRole="header">Tu progreso</Text>
+                {raGameId && isRestoringSession ? (
+                    <Text tone="muted">Cargando sesión…</Text>
+                ) : raGameId && !userId ? (
+                    <TextLink href="/login">Iniciá sesión para ver tu progreso.</TextLink>
+                ) : raGameId && progressMessage ? (
+                    <Text>{progressMessage}</Text>
+                ) : raGameId && !progress ? (
+                    <Text tone="muted">Cargando progreso…</Text>
+                ) : achievementTotal === 0 ? (
+                    <Text tone="muted">Este juego no tiene logros disponibles.</Text>
+                ) : (
+                    <>
+                        <View style={styles.progressCaption}>
+                            <Text>{achievementCount} de {achievementTotal} logros desbloqueados</Text>
+                            {percentage !== null && <Text tone="meta">{percentage} %</Text>}
+                        </View>
+                        {percentage !== null && (
+                            <View
+                                accessibilityRole="progressbar"
+                                accessibilityLabel="Logros desbloqueados"
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={percentage}
+                                style={styles.track}
+                            >
+                                <View style={[styles.fill, { width: `${percentage}%` }]} />
+                            </View>
+                        )}
+                    </>
+                )}
+            </Panel>
+            {userId && raGameId && !isRestoringSession ? (
+                <Panel>
+                    <Text tone="heading" accessibilityRole="header">Ranking del juego</Text>
+                    {!currentRanking ? (
+                        <Text tone="muted">Cargando ranking…</Text>
+                    ) : currentRanking.error ? (
+                        <Text tone="error">No se pudo cargar el ranking.</Text>
+                    ) : currentRanking.rows.length === 0 ? (
+                        <Text tone="muted">Todavía no hay partidas con progreso registrado.</Text>
+                    ) : currentRanking.rows.map((row, index) => (
+                        <View key={index} style={[styles.rankingRow, row.is_me && styles.currentPlayer]}>
+                            <Text tone="meta" style={styles.position}>{row.ranking_position}.</Text>
+                            <Text style={styles.player}>{row.player_name}{row.is_me ? ' (vos)' : ''}</Text>
+                            <Text tone="muted">{row.unlocked} de {row.total}</Text>
+                            <Text tone="meta" style={styles.score}>{Number(row.percentage).toLocaleString('es-AR')} %</Text>
+                        </View>
+                    ))}
+                </Panel>
+            ) : null}
+        </Page>
+    );
+}
+
+const styles = StyleSheet.create({
+    header: { gap: 8 },
+    progressCaption: { ...layout.row, justifyContent: 'space-between' },
+    track: { backgroundColor: colors.input, height: 10, borderRadius: 5, overflow: 'hidden' },
+    fill: { backgroundColor: colors.accent, height: '100%', borderRadius: 5 },
+    rankingRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12, backgroundColor: colors.input, borderRadius: 8, borderWidth: 1, borderColor: colors.line },
+    currentPlayer: { backgroundColor: colors.highlight, borderColor: colors.highlightLine },
+    position: { minWidth: 32 },
+    player: { flex: 1 },
+    score: { minWidth: 66, textAlign: 'right' },
+});

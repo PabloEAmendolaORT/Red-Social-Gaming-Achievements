@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState, useRef } from 'react';
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { Text, View, Button } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+import { Button, Page, Text, Title, colors, layout } from '../../components/RetroUI';
 import { AuthContext } from '../../context/AuthContext';
 import { getRom } from '../../services/romStorage';
 import { sendRaEmulatorRequest, finishPlaySession, startPlaySession } from '../../services/raService';
@@ -123,7 +124,7 @@ export default function Play() {
                 if (frameWindow !== iframeRef.current?.contentWindow) return;
 
                 setIsSyncing(false);
-                router.replace({ pathname: '/', params });
+                router.replace({ pathname: '/library', params });
                 return;
             }
 
@@ -198,7 +199,7 @@ export default function Play() {
         const frameWindow = iframeRef.current?.contentWindow;
 
         if (!frameWindow || readyMessage?.source !== frameWindow) {
-            router.replace('/');
+            router.replace('/library');
             return;
         }
 
@@ -212,30 +213,46 @@ export default function Play() {
         );
     }
 
-    if (isRestoringSession) return <Text>Cargando sesión…</Text>;
-    if (!userId) return <Link href="/login">Iniciá sesión para jugar</Link>;
-    if (typeof fingerprint !== 'string') return <Text>ROM inválida.</Text>;
+    if (isRestoringSession) return <Page><Text tone="muted">Cargando sesión…</Text></Page>;
+    if (!userId) return <Page><Button title="Iniciar sesión para jugar" href="/login" /></Page>;
+    if (typeof fingerprint !== 'string') return <Page><Text tone="error">ROM inválida.</Text><Button title="Volver a la biblioteca" href="/library" secondary /></Page>;
 
     return (
-        <View>
-            <Button
-                title={isSyncing ? 'Sincronizando…' : 'Volver a la biblioteca'}
-                onPress={handleExit}
-                disabled={isSyncing}
-            />
-            {exitError ? <Text>{exitError}</Text> : null}
-            {!current ? <Text>Cargando ROM…</Text> : null}
-            {current?.error ? <Text>No se pudo leer la ROM.</Text> : null}
-            {current?.rom === null ? <Text>Seleccioná la ROM en este navegador.</Text> : null}
-            {current?.rom ? <Text>ROM lista: {current.rom.file.name}</Text> : null}
-            {current?.rom ? (
-                <iframe
-                    title="Emulador SkyEmu"
-                    src={`/skyemu.html?account=${encodeURIComponent(userId)}`}
-                    ref={iframeRef}
-                    style={{ width: '100%, height: 480, border: 0 '}}
+        <Page style={styles.page}>
+            <View style={styles.header}>
+                <View style={styles.label}>
+                    <Text tone="meta">SKYEMU</Text>
+                    <Title style={styles.title}>{current?.rom?.file.name ?? 'Emulador'}</Title>
+                </View>
+                <Button
+                    title={isSyncing ? 'Sincronizando…' : 'Volver a la biblioteca'}
+                    onPress={handleExit}
+                    disabled={isSyncing}
+                    secondary
                 />
+            </View>
+            {exitError ? <Text tone="error" accessibilityRole="alert">{exitError}</Text> : null}
+            {!current ? <Text tone="muted">Cargando ROM…</Text> : null}
+            {current?.error ? <Text tone="error">No se pudo leer la ROM.</Text> : null}
+            {current?.rom === null ? <Text tone="muted">Agregá la ROM a la biblioteca de este navegador para jugar.</Text> : null}
+            {current?.rom ? (
+                <View style={styles.frame}>
+                    <iframe
+                        title="Emulador SkyEmu"
+                        src={`/skyemu.html?account=${encodeURIComponent(userId)}`}
+                        ref={iframeRef}
+                        style={{ display: 'block', width: '100%', height: 480, border: 0 }}
+                    />
+                </View>
             ) : null}
-        </View>
+        </Page>
     );
 }
+
+const styles = StyleSheet.create({
+    page: { paddingTop: 24 },
+    header: { ...layout.row, justifyContent: 'space-between' },
+    label: { flexShrink: 1, gap: 4 },
+    title: { fontSize: 36, lineHeight: 38 },
+    frame: { backgroundColor: '#080d12', borderColor: colors.line, borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+});

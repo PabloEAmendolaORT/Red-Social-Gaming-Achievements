@@ -155,8 +155,8 @@
 
             Module.sokol_drop(dropEvent);
             Module.canvas.focus();
-            status.textContent = `ROM entregada a SkyEmu: ${file.name}`;
-
+            status.textContent = '';
+            
         });
 
         const originalOpen = XMLHttpRequest.prototype.open;

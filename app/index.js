@@ -1,487 +1,80 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, TextInput } from 'react-native';
-import { useState, useContext, useEffect } from 'react';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { useContext } from 'react';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { saveRom, listRoms } from '../services/romStorage';
-import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry, autoIdentifyLibraryEntry } from '../services/libraryService';
-import { searchRaGames, resolveRaGameId, getRaRomHash, getRaProgress, listPendingPlaySessions, finishPlaySession } from '../services/raService';
-
-export default function App() {
-  
-  const [selectedRom, setSelectedRom] = useState(null);
-  const [romError, setRomError] = useState('');
-  const { user, isRestoringSession } = useContext(AuthContext);
-  const [isSavingRom, setIsSavingRom] = useState(false);
-  const [romMessage, setRomMessage] = useState('');
-  const userId = user?.id;
-  const [savedRoms, setSavedRoms] = useState([]);
-  const [isLoadingRoms, setIsLoadingRoms] = useState(true);
-  const [remoteLibrary, setRemoteLibrary] = useState(null);
-  const [romToIdentify, setRomToIdentify] = useState(null);
-  const [gameTitle, setGameTitle] = useState('');
-  const [gameResults, setGameResults] = useState([]);
-  const [catalogMessage, setCatalogMessage] = useState('');
-  const [isSearchingGames, setIsSearchingGames] = useState(false);
-  const [isIdentifyingRom, setIsIdentifyingRom] = useState(false);
-  const { playedRom, newAchievements } = useLocalSearchParams();
-  const [playedProgress, setPlayedProgress] = useState(null);
-  const [pendingResult, setPendingResult] = useState(null);
-  const [retryingSessionId, setRetryingSessionId] = useState(null);
-
-  useEffect(() => {
-      if (isRestoringSession || !userId) return;
-
-      let ignore = false;
-
-      async function loadPendingSessions() {
-          try {
-              const { data, error } = await listPendingPlaySessions(userId);
-              if (error) throw error;
-
-              if (!ignore) setPendingResult({ userId, sessions: data });
-          } catch {
-              if (!ignore) setPendingResult({ userId, error: true });
-          }
-      }
-
-      loadPendingSessions();
-      return () => { ignore = true; };
-  }, [userId, isRestoringSession]);
-
-  useEffect(() => {
-    if (isRestoringSession || !userId) return;
-
-    let ignore = false;
-    setIsLoadingRoms(true);
-
-    async function loadRoms() {
-      try {
-        const roms = await listRoms(userId);
-        if(!ignore) setSavedRoms(roms);
-      } catch {
-        if (!ignore) setRomError('No se pudieron cargar las ROMs guardadas.');
-      } finally {
-        if (!ignore) setIsLoadingRoms(false);
-      }
-    }
-
-    loadRoms();
-  
-    return () => { ignore = true; };
-  }, [userId, isRestoringSession]);
-
-  useEffect(() => {
-    if (isRestoringSession || !userId) return;
-    
-    let ignore = false;
-    
-    async function loadLibrary() {
-      const { data, error } = await listLibraryEntries(userId);
-
-      if (ignore) return;
-
-      if (error) {
-        setRomError('No se pudo cargar la biblioteca de Supabase.');
-        return;
-      }
-
-      setRemoteLibrary({ userId, entries: data});
-    }
-
-    loadLibrary();
-
-    return () => {
-      ignore = true;
-    };
-
-  }, [userId, isRestoringSession]);
-
-  function handleRomChange(event) {
-      const input = event.currentTarget;
-      const file = input.files?.[0] ?? null;
-
-      setRomError('');
-      setSelectedRom(null);
-
-      if (!file) return;
-
-      if (!/\.(gb|gbc|gba)$/i.test(file.name) || file.size === 0) {
-          setRomError('Elegí un archivo .gb, .gbc o .gba que no esté vacío.');
-          input.value = '';
-          return;
-      }
-
-      setSelectedRom(file);
-  }
-
-  async function tryAutoIdentify(savedRom) {
-    const entry = libraryEntries.find(
-        (item) => item.rom_fingerprint === savedRom.fingerprint
-    );
-
-    if (entry?.ra_game_id) return;
-
-    try {
-      const hash = await getRaRomHash(savedRom.file);
-      const { data, error } = await resolveRaGameId(hash);
-      if (error) throw error;
-
-      const gameId = data?.GameID;
-      if (!Number.isInteger(gameId) || gameId <= 0) return;
-
-      const { data: title, error: linkError } = await autoIdentifyLibraryEntry(
-          savedRom.fingerprint,
-          gameId
-      );
-      if (linkError) throw linkError;
-      if (!title) return;
-
-      setRomMessage(`ROM guardada e identificada: ${title}`);
-
-      const { data: entries } = await listLibraryEntries(savedRom.userId);
-      if (entries) setRemoteLibrary({ userId: savedRom.userId, entries });
-    } catch {
-      setRomMessage('ROM guardada. Podés identificarla desde el catálogo.');
-    }
-  }
-
-  async function handleSaveRom() {
-    if (isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms) return;
-    
-    setRomError('');
-    setRomMessage('');
-    setIsSavingRom(true);
-    
-    try {
-      const savedRom = await saveRom(user.id, selectedRom);
-      setSavedRoms((previous) => [
-        ...previous.filter((rom) => rom.fingerprint !== savedRom.fingerprint),
-        savedRom,
-      ]);
-      setRomMessage(`ROM guardada correctamente: ${savedRom.file.name}`);
-      try {
-        const { error } = await saveLibraryEntry(savedRom);
-        if (error) throw error;
-        await tryAutoIdentify(savedRom);
-      } catch {
-        setRomError('La ROM se guardó localmente. Volve a tocar Guardar ROM para intentar nuevamente la ficha en Supabase.');
-      }
-    } catch {
-      setRomError('No se pudo guardar la ROM.');
-    } finally {
-      setIsSavingRom(false);
-    }
-
-  }
-
-  const missingRoms = remoteLibrary && remoteLibrary?.userId === userId
-    ? remoteLibrary.entries.filter((entry)=>
-      !savedRoms.some((rom) =>
-        rom.userId === userId && rom.fingerprint === entry.rom_fingerprint
-      )
-    )
-  : [];
-    
-  async function handleSearchGames() {
-    const title = gameTitle.trim();
-    setGameResults([]);
-
-    if (!title) {
-        setCatalogMessage('Escribí un título para buscar.');
-        return;
-    }
-
-    setCatalogMessage('');
-    setIsSearchingGames(true);
-
-    try {
-        const { data, error } = await searchRaGames(5, title);
-        if (error) throw error;
-
-        setGameResults(data);
-        if (data.length === 0) setCatalogMessage('No se encontraron juegos.');
-    } catch {
-        setCatalogMessage('No se pudo consultar el catálogo.');
-    } finally {
-        setIsSearchingGames(false);
-    }
-  }
-
-  async function handleIdentifyGame(game){
-    if (!romToIdentify || romToIdentify.userId !== userId || isIdentifyingRom) return;
-
-    setCatalogMessage('');
-    setIsIdentifyingRom(true);
-    
-    try {
-      const { data, error } = await identifyLibraryEntry(
-        romToIdentify.fingerprint,
-        game.ra_game_id
-      );
-
-      if (error || data !== true) {
-        setCatalogMessage('No se pudo guardar la asociación.');
-        return;
-      }
-
-      const identifiedEntry = {
-        rom_fingerprint: romToIdentify.fingerprint,
-        rom_name: romToIdentify.file.name,
-        ra_game_id: game.ra_game_id,
-        game: { title: game.title },
-      };
-
-      setRemoteLibrary((current) => {
-        if (current && current.userId !== userId) return current;
-
-        const entries = current?.entries ?? [];
-
-        return {
-          userId,
-          entries: [
-            ...entries.filter(
-              (entry) => entry.rom_fingerprint !== identifiedEntry.rom_fingerprint
-            ),
-            identifiedEntry,
-          ],
-        };
-      });
-
-      setGameResults([]);
-      setCatalogMessage(`Juego identificado: ${game.title}`);
-    } catch {
-      setCatalogMessage('No se pudo guardar la asociación.');
-    } finally {
-      setIsIdentifyingRom(false);
-    }
-  }
-
-  const libraryEntries = remoteLibrary && remoteLibrary.userId === userId
-    ? remoteLibrary.entries
-    : [];
-
-    const playedEntry = typeof playedRom === 'string'
-    ? libraryEntries.find((entry) => entry.rom_fingerprint === playedRom)
-    : null;
-    const playedGameId = playedEntry?.ra_game_id;
-
-    useEffect(() => {
-      setPlayedProgress(null);
-      if (!userId || !playedGameId) return;
-
-      let ignore = false;
-
-      async function loadPlayedProgress() {
-          try {
-            const { data, error } = await getRaProgress(playedGameId);
-            if (error || !data) throw error ?? new Error('Progreso ausente.');
-
-            if (!ignore) setPlayedProgress({ userId, playedRom, data });
-          } catch (error) {
-            if (!ignore) {
-              setPlayedProgress({
-                userId,
-                playedRom,
-                errorStatus: error?.context?.status ?? 0,
-              });
-            }
-          }
-      }
-
-      loadPlayedProgress();
-      return () => { ignore = true; };
-    }, [userId, playedRom, playedGameId]);
-
-  const titlesByFingerprint = new Map(
-    libraryEntries.map((entry) => [entry.rom_fingerprint, entry.game?.title])
-  );
-
-  const gameIdsByFingerprint = new Map(
-    libraryEntries.map((entry) => [entry.rom_fingerprint, entry.ra_game_id])
-  );
-
-  async function handleRetrySession(sessionId) {
-    if (retryingSessionId !== null) return;
-
-    setRetryingSessionId(sessionId);
-
-    try {
-        const { data, error } = await finishPlaySession(sessionId);
-        if (error) throw error;
-
-        const complete = data?.status === 'complete';
-
-        setPendingResult((current) => {
-            if (current?.userId !== userId) return current;
-
-            return {
-                ...current,
-                sessions: complete
-                    ? current.sessions.filter((session) => session.id !== sessionId)
-                    : current.sessions,
-                message: complete
-                    ? `Sesión sincronizada. Logros nuevos: ${data.newUnlockedIds.length}.`
-                    : 'La sesión sigue pendiente. Podés reintentar más tarde.',
-            };
-        });
-    } catch {
-        setPendingResult((current) => {
-            if (current?.userId !== userId) return current;
-
-            return { ...current, message: 'No se pudo sincronizar la sesión.' };
-        });
-    } finally {
-        setRetryingSessionId(null);
-    }
-  }
-  
-  return (
-    <View style={styles.container}>
-      <Text>Biblioteca de juegos</Text>
-
-      {playedEntry && playedProgress?.userId === userId &&
-      playedProgress.playedRom === playedRom ? (
-        playedProgress.errorStatus === 404 ? (
-          <Link href="/profile">Asociá tu cuenta de RetroAchievements para ver el progreso.</Link>
-        ) : playedProgress.errorStatus !== undefined ? (
-          <Text>No se pudo actualizar el progreso de RetroAchievements.</Text>
-        ) : (
-          <Text>
-            {playedEntry.game?.title ?? playedEntry.rom_name}: {playedProgress.data.unlocked} de {playedProgress.data.total} logros
-          </Text>
-        )
-      ) : null}
-
-      {playedEntry && typeof newAchievements === 'string' ? (
-        <Text>Logros nuevos en esta sesión: {newAchievements}</Text>
-      ) : null}
-
-      {pendingResult?.userId === userId && pendingResult?.error ? (
-          <Text>No se pudieron consultar las sesiones pendientes.</Text>
-      ) : null}
-
-      {pendingResult?.userId === userId && pendingResult?.sessions?.length > 0 ? (
-          <Text>Sesiones pendientes de sincronizar: {pendingResult.sessions.length}</Text>
-      ) : null}
-
-      {pendingResult?.userId === userId ? (
-        <>
-            {pendingResult?.sessions?.map((session) => (
-                <View key={session.id}>
-                    <Text>Partida del {new Date(session.ended_at).toLocaleString()}</Text>
-                    <Button
-                        title={retryingSessionId === session.id
-                            ? 'Sincronizando…'
-                            : 'Reintentar sincronización'}
-                        disabled={retryingSessionId !== null}
-                        onPress={() => handleRetrySession(session.id)}
-                    />
+import { Button, Page, Text, Title, colors, layout } from '../components/RetroUI';
+
+const features = [
+    ['Coleccioná', 'Agregá tus juegos de Game Boy, Game Boy Color y Game Boy Advance.'],
+    ['Jugá', 'Abrí un juego en el navegador y retomá tu partida guardada.'],
+    ['Compará', 'Vinculá RetroAchievements para ver tus logros y el ranking de cada juego.'],
+];
+
+export default function Welcome() {
+    const { user, isRestoringSession } = useContext(AuthContext);
+    const { width } = useWindowDimensions();
+    const wide = width >= 1024;
+    const roomy = width >= 1200;
+
+    return (
+        <Page>
+            <View style={[styles.hero, wide && styles.heroWide]}>
+                <View style={styles.copy}>
+                    <Text tone="meta">GAME BOY · GAME BOY COLOR · GAME BOY ADVANCE</Text>
+                    <Title style={roomy && styles.largeTitle}>
+                        Jugá tus clásicos.{'\n'}<Text tone="title" style={[styles.accent, roomy && styles.largeTitle]}>Seguí tus logros.</Text>
+                    </Title>
+                    <Text tone="muted" style={styles.intro}>
+                        Tu colección de juegos retro, tus partidas y tu progreso en un solo lugar.
+                    </Text>
+                    {isRestoringSession ? <Text tone="muted">Cargando sesión…</Text> : (
+                        <View style={layout.row}>
+                            {user ? <Button title="Ir a mi biblioteca" href="/library" /> : (
+                                <>
+                                    <Button title="Crear cuenta" href="/register" />
+                                    <Button title="Iniciar sesión" href="/login" secondary />
+                                </>
+                            )}
+                        </View>
+                    )}
                 </View>
-            ))}
-            {pendingResult?.message ? <Text>{pendingResult.message}</Text> : null}
-        </>
-      ) : null}
-
-      <StatusBar style="auto" />
-
-      <input
-        type="file"
-        accept=".gb,.gbc,.gba"
-        aria-label="Seleccionar una ROM"
-        onChange={handleRomChange}
-      />
-      {selectedRom ? <Text>ROM seleccionada: {selectedRom.name}</Text> : null}
-
-      <Button
-        title={isSavingRom ? 'Guardando ROM...' : 'Guardar ROM'}
-        onPress={handleSaveRom}
-        disabled={isRestoringSession || !user || !selectedRom || isSavingRom || isLoadingRoms || isIdentifyingRom}
-      />
-      {romMessage ? <Text>{romMessage}</Text> : null}
-
-      {romError ? <Text>{romError}</Text> : null}
-
-      {userId ? (
-        <View>
-          <Text>ROMs guardadas en este navegador:</Text>
-          {isLoadingRoms ?  <Text>Cargando ROMs...</Text> : null}
-          {savedRoms
-            .filter((rom) => rom.userId === userId)
-            .map((rom) => (
-              <View key={rom.fingerprint}>
-                <Text>{titlesByFingerprint.get(rom.fingerprint) ?? rom.file.name}</Text>
-                {gameIdsByFingerprint.get(rom.fingerprint) ? (
-                    <Link href={`/games/ra-${gameIdsByFingerprint.get(rom.fingerprint)}`}>
-                      Ver detalle y ranking
-                    </Link>
-                ) : null}
-                <Link href={{
-                    pathname: '/play/[fingerprint]',
-                    params: { fingerprint: rom.fingerprint },
-                }}>
-                    Jugar
-                </Link>
-                {/\.gba$/i.test(rom.file.name) ? (
-                <Button
-                  title="Identificar juego"
-                  disabled={isSearchingGames || isIdentifyingRom}
-                  onPress={() => {
-                      setRomToIdentify(rom);
-                      setGameTitle('');
-                      setGameResults([]);
-                      setCatalogMessage('');
-                  }}
-                />
-                ) : null}
-              </View>
-            ))}
-          {!isLoadingRoms && missingRoms.map((entry) =>
-          <Text key={entry.rom_fingerprint}>
-            {entry.game?.title ?? entry.rom_name} · Seleccioná la ROM en este navegador
-          </Text>
-          )}
-        </View>
-        ) : null}
-
-        {romToIdentify && romToIdentify.userId === userId ? (
-            <View>
-                <Text>Identificar: {romToIdentify.file.name}</Text>
-                <TextInput
-                    placeholder="Título del juego en GBA"
-                    value={gameTitle}
-                    onChangeText={setGameTitle}
-                    editable={!isSearchingGames}
-                />
-                <Button
-                    title={isSearchingGames ? 'Buscando…' : 'Buscar en el catálogo'}
-                    onPress={handleSearchGames}
-                    disabled={isSearchingGames}
-                />
-                {catalogMessage ? <Text>{catalogMessage}</Text> : null}
-                {gameResults.map((game) => (
-                  <Button
-                      key={game.ra_game_id}
-                      title={`Elegir ${game.title}`}
-                      onPress={() => handleIdentifyGame(game)}
-                      disabled={isIdentifyingRom}
-                  />
+                <div className="console-art" aria-hidden="true">
+                    <div className="console-body">
+                        <div className="console-bezel">
+                            <span className="console-led" />
+                            <div className="console-screen">
+                                <span className="console-moon" />
+                                <span className="console-hills" />
+                                <span className="console-ground" />
+                            </div>
+                        </div>
+                        <div className="console-controls">
+                            <span className="console-cross" />
+                            <span className="console-buttons"><i /><i /></span>
+                        </div>
+                        <div className="console-switches"><i /><i /></div>
+                        <span className="console-speaker" />
+                    </div>
+                </div>
+            </View>
+            <View style={[layout.grid, styles.features]}>
+                {features.map(([title, description]) => (
+                    <View key={title} style={styles.feature}>
+                        <Text tone="heading" accessibilityRole="header">{title}</Text>
+                        <Text tone="muted">{description}</Text>
+                    </View>
                 ))}
             </View>
-        ) : null}
-
-      <Link href="/profile">Perfil de usuario</Link>
-    </View>
-
-  )       
+        </Page>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    hero: { gap: 28, paddingTop: 10 },
+    heroWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 440 },
+    copy: { gap: 20, flexShrink: 1 },
+    largeTitle: { fontSize: 68, lineHeight: 78 },
+    accent: { color: colors.accent },
+    intro: { fontSize: 18, lineHeight: 28, maxWidth: 420 },
+    features: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 24 },
+    feature: { flexBasis: 240, flexGrow: 1, paddingRight: 24, gap: 8 },
 });
-

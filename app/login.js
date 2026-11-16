@@ -1,7 +1,6 @@
-import { TextInput } from 'react-native';
-import { View, Text, Button } from 'react-native';
+import { Button, Page, Panel, Text, TextInput, TextLink, Title } from '../components/RetroUI';
 import { useState, useContext } from 'react';
-import { Redirect, Link } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { login } from '../services/authService';
 import { AuthContext } from '../context/AuthContext'
 
@@ -9,7 +8,8 @@ export default function Login() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const { user, isRestoringSession } = useContext(AuthContext);    const [message, setMessage] = useState('');
+    const { user, isRestoringSession } = useContext(AuthContext);
+    const [message, setMessage] = useState('');
 
     const handleSubmit = async () => {
         if (!email.trim() || !password) {
@@ -29,38 +29,37 @@ export default function Login() {
     }
 
     if (!isRestoringSession && user) {
-    return <Redirect href="/profile" />;
+        return <Redirect href="/library" />;
     }
 
-    return (
-        <View>
-            <Text>Login</Text>
 
-            <View>
+    return (
+        <Page narrow>
+            <Title>Iniciar sesión</Title>
+            <Text tone="muted">Entrá para acceder a tu biblioteca.</Text>
+            <Panel>
+                <Text>Correo electrónico</Text>
                 <TextInput
-                    placeholder="Email"
-                    placeholderTextColor="#999"
+                    accessibilityLabel="Correo electrónico"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
                     value={email}
                     onChangeText={setEmail}
                 />
-            </View>
-
-            <View>
+                <Text>Contraseña</Text>
                 <TextInput
-                    placeholder="Contraseña"
-                    placeholderTextColor="#999"
+                    accessibilityLabel="Contraseña"
+                    autoComplete="current-password"
                     value={password}
                     onChangeText={setPassword}
+                    onSubmitEditing={handleSubmit}
                     secureTextEntry
                 />
-            </View>
-
-
-            <Button title="Iniciar sesión" onPress={handleSubmit} />
-            {message ? <Text>{message}</Text> : null}
-
-            <Link href="/register">Crear cuenta</Link>
-
-        </View>
+                <Button title="Iniciar sesión" onPress={handleSubmit} />
+                {message ? <Text tone="error" accessibilityRole="alert">{message}</Text> : null}
+            </Panel>
+            <TextLink href="/register">Crear cuenta</TextLink>
+        </Page>
     );
 }

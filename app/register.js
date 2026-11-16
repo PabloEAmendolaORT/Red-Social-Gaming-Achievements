@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Button } from 'react-native';
+import { Button, Page, Panel, Text, TextInput, TextLink, Title } from '../components/RetroUI';
 import { register } from '../services/authService';
-import { Link } from 'expo-router';
 
 export default function Register() {
     const [email, setEmail] = useState('');
@@ -27,25 +26,34 @@ export default function Register() {
             : 'Revisá tu correo para confirmar la cuenta.');
     };
 
+
     return (
-        <View>
-            <Text>Crear Cuenta</Text>
-            <TextInput
-                placeholder="Correo electrónico"
-                value={email}
-                onChangeText={setEmail}
-            />
-            <TextInput
-                placeholder="Contraseña"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-            />
-            <Button title="Registrarse" onPress={handleSubmit} />
-            {message ? <Text>{message}</Text> : null}
-
-            <Link href="/login">Ya tengo una cuenta</Link>
-        </View>
-    )
-
+        <Page narrow>
+            <Title>Crear cuenta</Title>
+            <Text tone="muted">Armá tu biblioteca y vinculá tu perfil de RetroAchievements.</Text>
+            <Panel>
+                <Text>Correo electrónico</Text>
+                <TextInput
+                    accessibilityLabel="Correo electrónico"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={setEmail}
+                />
+                <Text>Contraseña</Text>
+                <TextInput
+                    accessibilityLabel="Contraseña"
+                    autoComplete="new-password"
+                    value={password}
+                    onChangeText={setPassword}
+                    onSubmitEditing={handleSubmit}
+                    secureTextEntry
+                />
+                <Button title="Crear cuenta" onPress={handleSubmit} />
+                {message ? <Text accessibilityLiveRegion="polite">{message}</Text> : null}
+            </Panel>
+            <TextLink href="/login">Ya tengo una cuenta</TextLink>
+        </Page>
+    );
 }
