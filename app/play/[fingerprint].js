@@ -20,6 +20,36 @@ export default function Play() {
     const router = useRouter();
 
     useEffect(() => {
+        let frameId;
+
+        function restoreEmulatorFocus() {
+            if (document.visibilityState !== 'visible') return;
+
+            cancelAnimationFrame(frameId);
+            frameId = requestAnimationFrame(() => {
+                if (!document.hasFocus() || exitPending.current) return;
+
+                const iframe = iframeRef.current;
+                const canvas = iframe?.contentDocument?.getElementById('canvas');
+
+                if (!canvas || iframe.contentDocument.hasFocus()) return;
+
+                iframe.focus();
+                canvas.focus({ preventScroll: true });
+            });
+        }
+
+        document.addEventListener('visibilitychange', restoreEmulatorFocus);
+        window.addEventListener('focus', restoreEmulatorFocus);
+
+        return () => {
+            document.removeEventListener('visibilitychange', restoreEmulatorFocus);
+            window.removeEventListener('focus', restoreEmulatorFocus);
+            cancelAnimationFrame(frameId);
+        };
+    }, []);
+
+    useEffect(() => {
         if (isRestoringSession || !userId || typeof fingerprint !== 'string') return;
 
         let ignore = false;
