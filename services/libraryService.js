@@ -43,3 +43,11 @@ export function getLibraryEntry(userId, fingerprint) {
         .eq('rom_fingerprint', fingerprint)
         .maybeSingle();
 }
+
+export function removeLibraryEntry(userId, fingerprint) {
+    return supabase
+        .from('library_entries')
+        .delete()
+        .eq('user_id', userId)
+        .eq('rom_fingerprint', fingerprint);
+}

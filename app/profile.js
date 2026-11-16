@@ -1,5 +1,6 @@
-import { Link, Redirect } from 'expo-router';
-import { View, Text, Button, TextInput, Image } from 'react-native';
+import { Redirect } from 'expo-router';
+import { Image, StyleSheet, View } from 'react-native';
+import { Button, Page, Panel, Text, TextInput, TextLink, Title, colors, layout } from '../components/RetroUI';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { saveProfile, getProfile } from '../services/profileService';
@@ -138,104 +139,105 @@ export default function Profile() {
     }
 
     if (isRestoringSession) {
-        return (
-            <View>
-                <Text>Cargando sesión...</Text>
-            </View>
-        )
+        return <Page><Text tone="muted">Cargando sesión…</Text></Page>;
     }
 
     if (!user) {
-        return <Redirect href="/login" />
+        return <Redirect href="/login" />;
     }
 
     return (
-        <View>
-            <Text>Perfil de usuario</Text>
-            
-            <Text>{user.email}</Text>
-
-            <TextInput
-                placeholder="Alias"
-                value={displayName}
-                onChangeText={setDisplayName}
-                editable={!isLoadingProfile}
-            />
-
-            <Button title="Guardar" onPress={handleSave} disabled={isLoadingProfile} />
-
-            <Text>
-                RetroAchievements
-            </Text>
-
-            {raLink ? <Text>Cuenta asociada: {raLink.ra_username}</Text> : null}
-
-            <TextInput
-                placeholder="Usuario de RetroAchievements"
-                value={raUsername}
-                onChangeText={(value) => {
-                    setRaUsername(value);
-                    setRaProfile(null);
-                    setRaMessage('');
-                }}
-                editable={!isSearchingRa && !isLinkingRa}
-                autoCapitalize="none"
-            />
-            <Button
-                title={isSearchingRa ? 'Buscando…' : 'Buscar perfil'}
-                onPress={handleSearchRa}
-                disabled={isSearchingRa || isLinkingRa}
-            />
-
-            {raMessage ? <Text>{raMessage}</Text> : null}
-
-            {raProfile ? (
-                <View>
-                    {raProfile.avatarPath ? (
-                        <Image
-                            source={{ uri: `https://retroachievements.org${raProfile.avatarPath}` }}
-                            style={{ width: 64, height: 64 }}
-                            accessibilityLabel={`Avatar de ${raProfile.username}`}
-                        />
-                    ) : null}
-                    
-                    <Text>Perfil encontrado: {raProfile.username}</Text>
-
-                    <Button
-                        title={isLinkingRa ? 'Asociando…' : 'Asociar cuenta'}
-                        onPress={handleLinkRa}
-                        disabled={isLinkingRa || !raProfile.ulid || isLoadingProfile}
+        <Page>
+            <Title>Mi perfil</Title>
+            <View style={layout.grid}>
+                <Panel style={styles.column}>
+                    <Text tone="heading" accessibilityRole="header">Cuenta</Text>
+                    <Text tone="muted">{user.email}</Text>
+                    <Text>Alias</Text>
+                    <TextInput
+                        accessibilityLabel="Alias"
+                        placeholder="Tu nombre en el ranking"
+                        value={displayName}
+                        onChangeText={setDisplayName}
+                        editable={!isLoadingProfile}
                     />
+                    <Button title="Guardar alias" onPress={handleSave} disabled={isLoadingProfile} />
+                    {message ? <Text accessibilityLiveRegion="polite">{message}</Text> : null}
+                </Panel>
 
-                </View>
-            ) : null}
-
-            {message ? <Text>{message}</Text> : null}
+                <Panel style={styles.column}>
+                    <Text tone="heading" accessibilityRole="header">RetroAchievements</Text>
+                    {raLink ? (
+                        <Text tone="meta">Cuenta asociada: {raLink.ra_username}</Text>
+                    ) : (
+                        <Text tone="muted">Asociá tu perfil para sincronizar tus logros y participar en los rankings.</Text>
+                    )}
+                    <Text>Usuario de RetroAchievements</Text>
+                    <TextInput
+                        accessibilityLabel="Usuario de RetroAchievements"
+                        value={raUsername}
+                        onChangeText={(value) => {
+                            setRaUsername(value);
+                            setRaProfile(null);
+                            setRaMessage('');
+                        }}
+                        editable={!isSearchingRa && !isLinkingRa}
+                        autoCapitalize="none"
+                    />
+                    <Button
+                        title={isSearchingRa ? 'Buscando…' : 'Buscar perfil'}
+                        onPress={handleSearchRa}
+                        disabled={isSearchingRa || isLinkingRa}
+                        secondary
+                    />
+                    {raMessage ? <Text accessibilityLiveRegion="polite">{raMessage}</Text> : null}
+                    {raProfile ? (
+                        <View style={layout.row}>
+                            {raProfile.avatarPath ? (
+                                <Image
+                                    source={{ uri: `https://retroachievements.org${raProfile.avatarPath}` }}
+                                    style={styles.avatar}
+                                    accessibilityLabel={`Avatar de ${raProfile.username}`}
+                                />
+                            ) : null}
+                            <Text>{raProfile.username}</Text>
+                            <Button
+                                title={isLinkingRa ? 'Asociando…' : 'Asociar cuenta'}
+                                onPress={handleLinkRa}
+                                disabled={isLinkingRa || !raProfile.ulid || isLoadingProfile}
+                            />
+                        </View>
+                    ) : null}
+                </Panel>
+            </View>
 
             {raUlid ? (
-                <View>
-                    <Text>Juegos jugados</Text>
+                <Panel>
+                    <Text tone="heading" accessibilityRole="header">Juegos jugados</Text>
                     {!currentPlayedGames ? (
-                        <Text>Cargando juegos…</Text>
+                        <Text tone="muted">Cargando juegos…</Text>
                     ) : currentPlayedGames.error ? (
-                        <Text>No se pudieron cargar los juegos jugados.</Text>
+                        <Text tone="error">No se pudieron cargar los juegos jugados.</Text>
                     ) : currentPlayedGames.games.length === 0 ? (
-                        <Text>Todavía no hay partidas con progreso registrado.</Text>
+                        <Text tone="muted">Todavía no hay partidas con progreso registrado.</Text>
                     ) : currentPlayedGames.games.map((entry) => (
-                        <View key={entry.ra_game_id}>
-                            <Link href={`/games/ra-${entry.ra_game_id}`}>
+                        <View key={entry.ra_game_id} style={styles.gameRow}>
+                            <TextLink href={`/games/ra-${entry.ra_game_id}`}>
                                 {entry.game?.title ?? `Juego ${entry.ra_game_id}`}
-                            </Link>
-                            <Text>{entry.total_unlocked} de {entry.total_achievements} logros</Text>
+                            </TextLink>
+                            <Text tone="muted">{entry.total_unlocked} de {entry.total_achievements} logros</Text>
                         </View>
                     ))}
-                </View>
+                </Panel>
             ) : null}
 
-            {user && (
-            <Button title="Cerrar sesión" onPress={handleLogout} />
-            )}
-            <Link href="/">Volver a la biblioteca de juegos</Link>
-        </View>
-    )
+            <Button title="Cerrar sesión" onPress={handleLogout} secondary />
+        </Page>
+    );
 }
+
+const styles = StyleSheet.create({
+    column: { flexBasis: 380, flexGrow: 1 },
+    avatar: { width: 40, height: 40, borderRadius: 8 },
+    gameRow: { ...layout.row, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12 },
+});
