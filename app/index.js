@@ -1,9 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, FlatList, Button, TextInput } from 'react-native';
+import { StyleSheet, Text, View, Button, TextInput } from 'react-native';
 import { useState, useContext, useEffect } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { getGames } from '../services/gameService';
-import { GameCard } from '../components/GameCard';
 import { AuthContext } from '../context/AuthContext';
 import { saveRom, listRoms } from '../services/romStorage';
 import { saveLibraryEntry, listLibraryEntries, identifyLibraryEntry, autoIdentifyLibraryEntry } from '../services/libraryService';
@@ -299,6 +297,10 @@ export default function App() {
     libraryEntries.map((entry) => [entry.rom_fingerprint, entry.game?.title])
   );
 
+  const gameIdsByFingerprint = new Map(
+    libraryEntries.map((entry) => [entry.rom_fingerprint, entry.ra_game_id])
+  );
+
   async function handleRetrySession(sessionId) {
     if (retryingSessionId !== null) return;
 
@@ -409,6 +411,11 @@ export default function App() {
             .map((rom) => (
               <View key={rom.fingerprint}>
                 <Text>{titlesByFingerprint.get(rom.fingerprint) ?? rom.file.name}</Text>
+                {gameIdsByFingerprint.get(rom.fingerprint) ? (
+                    <Link href={`/games/ra-${gameIdsByFingerprint.get(rom.fingerprint)}`}>
+                      Ver detalle y ranking
+                    </Link>
+                ) : null}
                 <Link href={{
                     pathname: '/play/[fingerprint]',
                     params: { fingerprint: rom.fingerprint },
@@ -436,14 +443,6 @@ export default function App() {
           )}
         </View>
         ) : null}
-
-        <FlatList
-          data={getGames()}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <GameCard game={item} />
-          )}
-        />
 
         {romToIdentify && romToIdentify.userId === userId ? (
             <View>

@@ -3,7 +3,7 @@ import { View, Text, Button, TextInput, Image } from 'react-native';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { saveProfile, getProfile } from '../services/profileService';
-import { searchRaProfile, linkRaProfile, getRaLink } from '../services/raService';
+import { searchRaProfile, linkRaProfile, getRaLink, listPlayedGames } from '../services/raService';
 
 export default function Profile() {
     const { user, handleLogout, isRestoringSession } = useContext(AuthContext);
@@ -17,6 +17,31 @@ export default function Profile() {
     const [isLinkingRa, setIsLinkingRa] = useState(false);
     const [raLink, setRaLink] = useState(null);
     const userId = user?.id;
+    const raUlid = raLink?.ra_ulid;
+    const [playedGamesResult, setPlayedGamesResult] = useState(null);
+
+    useEffect(() => {
+        if (!userId || !raUlid) return;
+
+        let ignore = false;
+
+        async function loadPlayedGames() {
+            try {
+                const { data, error } = await listPlayedGames(userId, raUlid);
+                if (error) throw error;
+
+                if (!ignore) setPlayedGamesResult({ userId, raUlid, games: data });
+            } catch {
+                if (!ignore) setPlayedGamesResult({ userId, raUlid, error: true });
+            }
+        }
+
+        loadPlayedGames();
+        return () => { ignore = true; };
+    }, [userId, raUlid]);
+
+    const currentPlayedGames = playedGamesResult?.userId === userId &&
+        playedGamesResult?.raUlid === raUlid ? playedGamesResult : null;
 
     const handleSearchRa = async () => {
         const username = raUsername.trim();
@@ -186,6 +211,26 @@ export default function Profile() {
             ) : null}
 
             {message ? <Text>{message}</Text> : null}
+
+            {raUlid ? (
+                <View>
+                    <Text>Juegos jugados</Text>
+                    {!currentPlayedGames ? (
+                        <Text>Cargando juegos…</Text>
+                    ) : currentPlayedGames.error ? (
+                        <Text>No se pudieron cargar los juegos jugados.</Text>
+                    ) : currentPlayedGames.games.length === 0 ? (
+                        <Text>Todavía no hay partidas con progreso registrado.</Text>
+                    ) : currentPlayedGames.games.map((entry) => (
+                        <View key={entry.ra_game_id}>
+                            <Link href={`/games/ra-${entry.ra_game_id}`}>
+                                {entry.game?.title ?? `Juego ${entry.ra_game_id}`}
+                            </Link>
+                            <Text>{entry.total_unlocked} de {entry.total_achievements} logros</Text>
+                        </View>
+                    ))}
+                </View>
+            ) : null}
 
             {user && (
             <Button title="Cerrar sesión" onPress={handleLogout} />

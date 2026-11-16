@@ -89,3 +89,37 @@ export async function sendRaEmulatorRequest(body) {
         body: error ? await response.text() : JSON.stringify(data),
     };
 }
+
+export function getGameRanking(gameId) {
+    return supabase.rpc('get_game_ranking', { p_ra_game_id: gameId });
+}
+
+export async function listPlayedGames(userId, raUlid) {
+    const { data, error } = await supabase
+        .from('play_sessions')
+        .select('ra_game_id, total_unlocked, total_achievements, game:ra_game_catalog(title)')
+        .eq('user_id', userId)
+        .eq('ra_ulid', raUlid)
+        .eq('status', 'complete')
+        .not('progress_synced_at', 'is', null)
+        .order('progress_synced_at', { ascending: false });
+    if (error) return { data: null, error};
+
+    const games = new Map();
+
+    for (const session of data ?? []) {
+        if (!games.has(session.ra_game_id)) {
+            games.set(session.ra_game_id, session);
+        }
+    }
+
+    return { data: Array.from(games.values()), error: null};
+}
+
+export function getRaGame(gameId) {
+    return supabase
+        .from('ra_game_catalog')
+        .select('ra_game_id, title')
+        .eq('ra_game_id', gameId)
+        .maybeSingle();
+}
